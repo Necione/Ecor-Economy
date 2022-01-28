@@ -1,0 +1,45 @@
+{
+    "token": "BOT TOKEN",
+    "prefix": "+",
+
+    "adminRole": "ROLE ID",
+    "adminRole1": "ROLE ID",
+    "images": [
+        {
+            "word": "example",
+            "image": "https://i.imgur.com/GYeoGXL.jpeg"
+        },
+        {
+            "word": "example",
+            "image": "https://i.imgur.com/GYeoGXL.jpeg"
+        },
+        {
+            "word": "example",
+            "image": "https://i.imgur.com/GYeoGXL.jpeg"
+        },
+        {
+            "word": "example",
+            "image": "https://i.imgur.com/GYeoGXL.jpeg"
+        },
+        {
+            "word": "example",
+            "image": "https://i.imgur.com/GYeoGXL.jpeg"
+        }
+    ],
+
+    "economy": {
+        "channel": "CHANNEL ID",
+        "minimumMessagesIn60Seconds": 2,
+        "minimumCoins": 10,
+        "maxiumumCoins": 20,
+        "boostRole": "ROLE ID",
+        "boostAmount": 5
+    },
+
+    "status": {
+        "type": "WATCHING",
+        "message": "over Riven"
+    },
+
+    "repChannel": "CHANNEL ID"
+}
