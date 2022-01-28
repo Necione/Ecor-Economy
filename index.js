@@ -45,14 +45,15 @@ function lb(id) {
             id: files[i].split(".")[0],
             balance: file.balance,
             messagesSent: file.messagesSent,
-            special: file.special
+            special: file.special,
+            staffCredits: (file.staffCredits == null ? 0 : file.staffCredits)
         });
     };
 
     bal = unsorted.sort((a, b) => (a.balance < b.balance) ? 1 : -1).map(t => t.id);
     msgSent = unsorted.sort((a, b) => (a.messagesSent < b.messagesSent) ? 1 : -1).map(t => t.id);
     spec = unsorted.sort((a, b) => (a.special < b.special) ? 1 : -1).map(t => t.id);
-    rating = unsorted.filter(t => t.staffCredits != null).sort((a, b) => (a.staffCredits < b.staffCredits) ? 1 : -1).map(t => t.id);
+    rating = unsorted.sort((a, b) => (a.staffCredits > b.staffCredits) ? 1 : -1).map(t => t.id).reverse();
 
     return [bal.indexOf(id) + 1, msgSent.indexOf(id) + 1, spec.indexOf(id) + 1, (rating.indexOf(id) == null ? null : rating.indexOf(id) + 1)];
 }
@@ -891,12 +892,6 @@ client.on("messageCreate", async message => {
             repCommandCooldown = repCommandCooldown.filter(t => t != null);
         }, (1000*60*60));
 
-        // update amount
-        data = get(message.mentions.users.first().id);
-        if(!data.staffCredits) data.staffCredits = 0;
-        data.staffCredits += (md[2] == "-" ? -1 : 1);
-        set(message.mentions.users.first().id, data);
-
         // reply
         embed = new MessageEmbed()
             .setColor('ORANGE')
@@ -1128,7 +1123,7 @@ client.on("messageCreate", async message => {
         : (dk.staffCredits >= 10)
         ? { colour: "WHITE", name: "Iron Wallet", chance: 10 }
         : { colour: "#CD7F32", name: "Bronze Wallet", chance: 0 }
-        string = "**Current Balance:** `"+dk.balance+" Coins` *(#"+leaderboard[0]+")*\n**Messages Sent:** `"+dk.messagesSent+"` *(#"+leaderboard[1]+")*\n**Special Tokens:** `"+dk.special+"` *(#"+leaderboard[2]+")* \n\n**User Rating:** `"+(dk.staffCredits != null ? dk.staffCredits : 0)+"` "+((leaderboard[3] != null) ? "*(#"+(leaderboard[3] != null ? leaderboard[3] : "")+")*" : "")+" \n**Total Strikes:** `"+(dk.strikes != null ? dk.strikes : 0)+"`";
+        string = "**Current Balance:** `"+dk.balance+" Coins` *(#"+leaderboard[0]+")*\n**Messages Sent:** `"+dk.messagesSent+"` *(#"+leaderboard[1]+")*\n**Special Tokens:** `"+dk.special+"` *(#"+leaderboard[2]+")* \n\n**User Rating:** `"+(dk.staffCredits != null ? (dk.staffCredits > 0 ? `+${dk.staffCredits}` : dk.staffCredits) : 0)+"` "+((leaderboard[3] != null) ? "*(#"+(leaderboard[3] != null ? leaderboard[3] : "")+")*" : "")+" \n**Total Strikes:** `"+(dk.strikes != null ? dk.strikes : 0)+"`";
 
         if(isLocked(user.id)) type = { colour: "DARK_RED", name: "Locked Wallet", chance: 0}
 
