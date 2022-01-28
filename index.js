@@ -13,11 +13,12 @@ const client = new Client({ intents: [
 
 // Config
 const cronTimezone = 'America/Los_Angeles';
-const { token, economy, prefix, adminRole, images, adminRole1, status } = require('./data/config.json');
+const { token, economy, prefix, adminRole, images, adminRole1, status, repChannel } = require('./data/config.json');
 let chatters = []; // holds the IDs of people sending messages
 let rewarded = []; // hold IDs of people who have recieved coins for that minute
 let lastEvent = 999; // unix date of when the last event took place
 let fights = []; // holds the IDs of users who have fought in the last 10mins
+let repCommandCooldown = []; // holds the IDs of users who have used the rep command in the last hour
 
 // Functions
 function get(id) {
@@ -51,8 +52,9 @@ function lb(id) {
     bal = unsorted.sort((a, b) => (a.balance < b.balance) ? 1 : -1).map(t => t.id);
     msgSent = unsorted.sort((a, b) => (a.messagesSent < b.messagesSent) ? 1 : -1).map(t => t.id);
     spec = unsorted.sort((a, b) => (a.special < b.special) ? 1 : -1).map(t => t.id);
+    rating = unsorted.filter(t => t.staffCredits != null).sort((a, b) => (a.staffCredits < b.staffCredits) ? 1 : -1).map(t => t.id);
 
-    return [bal.indexOf(id) + 1, msgSent.indexOf(id) + 1, spec.indexOf(id) + 1];
+    return [bal.indexOf(id) + 1, msgSent.indexOf(id) + 1, spec.indexOf(id) + 1, (rating.indexOf(id) == null ? null : rating.indexOf(id) + 1)];
 }
 function isLocked(id) {
     st = JSON.parse(fs.readFileSync(`./data/locked.json`)).includes(id) ? true : false;
@@ -513,7 +515,7 @@ client.on("messageCreate", async message => {
             .setDescription(`Success. Coins have been added.`)
         message.channel.send({embeds:[embed]});
     }
-    if(md[0].toLowerCase() == `${prefix}usercredits`) {
+    if(md[0].toLowerCase() == `${prefix}addrating`) {
 
         // admin?
         if(!message.member.roles.cache.has(adminRole)) {
@@ -529,7 +531,7 @@ client.on("messageCreate", async message => {
             embed = new MessageEmbed()
                 .setColor('DARK_RED')
                 .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setDescription(`Incorrect command usage. E.g. ${prefix}staffcredits <@user> <amount>`)
+                .setDescription(`Incorrect command usage. E.g. ${prefix}addrating <@user> <amount>`)
             return message.channel.send({embeds:[embed]});
         }
 
@@ -543,7 +545,40 @@ client.on("messageCreate", async message => {
         embed = new MessageEmbed()
             .setColor('GREEN')
             .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-            .setDescription(`Success. Credits have been added.`)
+            .setDescription(`Success. Reputation has been updated.`)
+        message.channel.send({embeds:[embed]});
+    }
+    if(md[0].toLowerCase() == `${prefix}removerating`) {
+
+        // admin?
+        if(!message.member.roles.cache.has(adminRole)) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`You must be a member of staff to use this command.`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // correct usage?
+        if(!message.mentions.users.first() || isNaN(md[2]) || md[2] < 0) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`Incorrect command usage. E.g. ${prefix}removerating <@user> <amount>`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // update JSON
+        dz = get(message.mentions.users.first().id);
+        if(!dz.staffCredits) dz.staffCredits = 0;
+        dz.staffCredits -= parseInt(md[2]);
+        set(message.mentions.users.first().id, dz);
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('GREEN')
+            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+            .setDescription(`Success. Reputation has been updated.`)
         message.channel.send({embeds:[embed]});
     }
     if(md[0].toLowerCase() == `${prefix}strike`) {
@@ -713,6 +748,15 @@ client.on("messageCreate", async message => {
     // user commands
     if(md[0].toLowerCase() == `${prefix}fight` && !msg.includes(`fightaccept`) && !msg.includes('fightdecline')) {
 
+        // locked?
+        if(isLocked(message.author.id)) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`Your wallet is locked. You cannot use this command.`)
+            return message.channel.send({embeds:[embed]});
+        }
+
         // correct usage?
         if(!message.mentions.users.first() || message.mentions.users.first() == message.author.id|| isNaN(md[2]) || md[2] < 10 || md[2] > 250) {
             embed = new MessageEmbed()
@@ -821,7 +865,64 @@ client.on("messageCreate", async message => {
             }
         });
     }
+    if(md[0].toLowerCase() == `${prefix}rep` || md[0].toLowerCase() == `${prefix}r`) {
+
+        // correct usage?
+        if(!message.mentions.users.first() || message.mentions.users.map(t => t.id).includes(message.author.id) || !["+", "-"].includes(md[2]) || !md[3]) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`Incorrect command usage. E.g. ${prefix}rep <@user> <+/-> <reason>`)
+                .setFooter({text:`*Please note, you CANNOT rep yourself!*`})
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // cooldown
+        if(repCommandCooldown.includes(message.author.id)) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`You are on cooldown. You can only use this command once per hour.`)
+            return message.channel.send({embeds:[embed]});
+        }
+        repCommandCooldown.push(message.author.id);
+        setTimeout(() => {
+            delete repCommandCooldown[repCommandCooldown.indexOf(message.author.id)];
+            repCommandCooldown = repCommandCooldown.filter(t => t != null);
+        }, (1000*60*60));
+
+        // update amount
+        data = get(message.mentions.users.first().id);
+        if(!data.staffCredits) data.staffCredits = 0;
+        data.staffCredits += (md[2] == "-" ? -1 : 1);
+        set(message.mentions.users.first().id, data);
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('ORANGE')
+            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+            .setDescription(`Reputation has been recorded!`)
+        message.channel.send({embeds:[embed]});
+
+        // record in channel
+        embed = new MessageEmbed()
+            .setColor(md[2] == "-" ? "DARK_RED" : "GREEN")
+            .setAuthor({ name: message.mentions.users.first().tag, iconURL: message.mentions.users.first().displayAvatarURL() })
+            .setDescription("`"+md.slice(3).join(" ")+"`")
+            .setFooter({ text: `Rep by: ${message.author.tag}` })
+        c = await message.guild.channels.fetch(repChannel);
+        c.send({embeds:[embed]});
+    }
     if(md[0].toLowerCase() == `${prefix}pay`) {
+
+        // locked?
+        if(isLocked(message.author.id)) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`Your wallet is locked. You cannot use this command.`)
+            return message.channel.send({embeds:[embed]});
+        }
 
         // correct usage?
         if(!message.mentions.users.first() || message.mentions.users.map(t => t.id).includes(message.author.id) || isNaN(md[1]) || md[1] < 0 || md[1] == '') {
@@ -952,7 +1053,66 @@ client.on("messageCreate", async message => {
             .setAuthor({ name: `Leaderboard - Top 10 Richest Users`, iconURL: message.guild.iconURL() })
             .setDescription(pages[0])
         message.channel.send({embeds: [embed]});
-    }   
+    }  
+    if(msg == `${prefix}rtop`) {
+        
+        // Sort raw data
+        files = fs.readdirSync(`./data/users/`).filter(t => t.endsWith('.json'));
+        unsorted = [];
+        for(let i in files) {
+            file = JSON.parse(fs.readFileSync(`./data/users/${files[i]}`));
+            unsorted.push({
+                id: files[i].split(".")[0],
+                count: file.staffCredits == null ? 0 : file.staffCredits,
+            });
+        };
+        leaderboard = unsorted.sort((a, b) => (a.count < b.count) ? 1 : -1);
+    
+        // Further sort
+        raw = [];
+        counter = 1
+        for(let i in leaderboard) {
+            raw.push({
+                id: leaderboard[i].id,
+                username: `<@${leaderboard[i].id}>`,
+                position: counter,
+                count: leaderboard[i].count,
+            });
+            counter = counter + 1;
+        }   
+
+        // Format
+        pages = [];
+        string = [];
+        for(let i in raw) {
+            temp = `**#${raw[i].position}** ${raw[i].username} - ${raw[i].count}`;
+            if(raw[i].position == 1) {
+                temp = `🥇 ${raw[i].username} - ${raw[i].count}`
+            } else if(raw[i].position == 2) {
+                temp = `🥈 ${raw[i].username} - ${raw[i].count}`
+            } else if(raw[i].position == 3) {
+                temp = `🥉 ${raw[i].username} - ${raw[i].count}`
+            }
+            if(string.length < 10) {
+                string.push(temp);
+            } else {
+                pages.push(string.join(` \n`));
+                string = [];
+                string.push(temp);
+            }
+        }
+
+        // Less than 10 users?
+        if(pages.length == 0) {
+            pages.push(string.join(` \n`));
+        }
+
+        embed = new MessageEmbed()
+            .setColor('ORANGE') 
+            .setAuthor({ name: `Leaderboard - Top 10 Users by Reputation`, iconURL: message.guild.iconURL() })
+            .setDescription(pages[0])
+        message.channel.send({embeds: [embed]});
+    }  
     if(md[0].toLowerCase() == `${prefix}w` || md[0].toLowerCase() == `${prefix}wallet`) {
 
         // collect data
@@ -968,7 +1128,7 @@ client.on("messageCreate", async message => {
         : (dk.staffCredits >= 10)
         ? { colour: "WHITE", name: "Iron Wallet", chance: 10 }
         : { colour: "#CD7F32", name: "Bronze Wallet", chance: 0 }
-        string = "**Current Balance:** `"+dk.balance+" Coins` *(#"+leaderboard[0]+")*\n**Messages Sent:** `"+dk.messagesSent+"` *(#"+leaderboard[1]+")*\n**Special Tokens:** `"+dk.special+"` *(#"+leaderboard[2]+")* \n\n**User Credit:** `"+(dk.staffCredits != null ? dk.staffCredits : 0)+"` \n**Total Strikes:** `"+(dk.strikes != null ? dk.strikes : 0)+"`";
+        string = "**Current Balance:** `"+dk.balance+" Coins` *(#"+leaderboard[0]+")*\n**Messages Sent:** `"+dk.messagesSent+"` *(#"+leaderboard[1]+")*\n**Special Tokens:** `"+dk.special+"` *(#"+leaderboard[2]+")* \n\n**User Rating:** `"+(dk.staffCredits != null ? dk.staffCredits : 0)+"` "+((leaderboard[3] != null) ? "*(#"+(leaderboard[3] != null ? leaderboard[3] : "")+")*" : "")+" \n**Total Strikes:** `"+(dk.strikes != null ? dk.strikes : 0)+"`";
 
         if(isLocked(user.id)) type = { colour: "DARK_RED", name: "Locked Wallet", chance: 0}
 
@@ -1046,11 +1206,14 @@ client.on("messageCreate", async message => {
             .setTitle(`Commands Summary`)
             .addField(`${prefix}pay amount @user @user`, `Allows users to send coins to other users.`)
             .addField(`${prefix}top`, `Displays the 10 richest users.`)
+            .addField(`${prefix}rtop`, `Shows the 10 users with highest rep.`)
             .addField(`${prefix}wallet OR ${prefix}w @user`, `Allows you to view the wallet of yourself or others.`)
             .addField(`${prefix}econinfo`, `Displays the current configurations of the economy.`)
             .addField(`${prefix}quests`, `Shows your daily progress on todays quest.`)
             .addField(`${prefix}claim`, `Claim the rewards from any completed quests.`)
             .addField(`${prefix}fight @user bet`, `Allows you to fight other users!`)
+            .addField(`${prefix}rep @user <+/-> <reason>`, `Allows you comment on another user.`)
+
         message.channel.send({embeds:[embed]});
     }
 });
