@@ -106,23 +106,41 @@ client.on("messageCreate", async message => {
     dt.messagesSent += 1;
     set(message.author.id, dt);
 
+    // quests
+    if(fs.existsSync(`./data/quests/${message.author.id}.json`)) {
+        xx = JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`));
+
+        if(xx.messages.count >= 1000 && xx.messages.claimed == false) {
+            xx.messages.claimed = true;
+
+            yy = get(message.author.id);
+            if(!isLocked(message.author.id)) yy.balance += 250;
+            yy.staffCredits += 2;
+            set(message.author.id, yy);
+        } else if(xx.messages.count >= 500 && xx.messages.claimed1 == false) {
+            xx.messages.claimed1 = true;
+
+            yy = get(message.author.id);
+            if(!isLocked(message.author.id)) yy.balance += 100;
+            yy.staffCredits += 1;
+            set(message.author.id, yy);
+        }
+
+        xx.messages.count += 1;
+        fs.writeFileSync(`./data/quests/${message.author.id}.json`, JSON.stringify(xx, null, 4));
+    } else {
+        fs.writeFileSync(`./data/quests/${message.author.id}.json`, JSON.stringify({
+            id: message.author.id,
+            messages: {
+                count: 1,
+                claimed: false, // 1000 messages (250 coins, 2 rep)
+                claimed1: false // 500 messages (100 coins, 1 rep)
+            }
+        }, null, 4));
+    }
+
     // earn coins through messaging
     if(message.channel.id == economy.channel && !rewarded.includes(message.author.id)) {
-
-        // messages for quests
-        if(fs.existsSync(`./data/quests/${message.author.id}.json`)) {
-            xx = JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`));
-            xx.messages.count += 1;
-            fs.writeFileSync(`./data/quests/${message.author.id}.json`, JSON.stringify(xx, null, 4));
-        } else {
-            fs.writeFileSync(`./data/quests/${message.author.id}.json`, JSON.stringify({
-                id: message.author.id,
-                messages: {
-                    count: 1,
-                    claimed: false
-                }
-            }, null, 4));
-        }
 
         chatters.push(message.author.id); // push to array
         setTimeout(() => {
@@ -348,11 +366,11 @@ client.on("messageCreate", async message => {
                 .setColor('ORANGE')
                 .setTitle(`⭐ Random Event | Dielemma`)
                 .setDescription(`<@${one}> must select someone below to lose 100 coins!\n\n1. <@${one}> \n2. <@${two}> \n3. <@${three}>`)
-                .setFooter({text:`Reply with 1, 2 or 3`})
+                .setFooter({text:`30 seconds to reply, or all 3 lose 100 coins.\nReply with 1, 2 or 3`})
             message.channel.send({embeds:[embed]});
 
             const filter = m => (m.content == '1' || m.content == '2' || m.content == '3') && m.author.id == message.author.id;
-            const collector = message.channel.createMessageCollector({ filter, max: 1});
+            const collector = message.channel.createMessageCollector({ filter, max: 1, time: 30000});
             collector.on('collect', m => {
 
                 switch(m.content) {
@@ -394,6 +412,29 @@ client.on("messageCreate", async message => {
                             .setDescription(`<@${three}> lost 100 coins.`)
                         message.channel.send({embeds:[embed]});
                         break;
+                }
+            });
+            collector.on('end', collected => {
+                if(collected.size == 0) {
+
+                    dx = get(one);
+                    if(!isLocked(one)) dx.balance -= 100;
+                    set(one, dx);
+
+                    dx = get(two);
+                    if(!isLocked(two)) dx.balance -= 100;
+                    set(two, dx);
+
+                    dx = get(three);
+                    if(!isLocked(three)) dx.balance -= 100;
+                    set(three, dx);
+
+                    embed = new MessageEmbed()
+                        .setColor('ORANGE')
+                        .setTitle(`Game over!`)
+                        .setDescription(`All 3 users lost 100 coins.`)
+                    message.channel.send({embeds:[embed]});
+
                 }
             });
         }
@@ -1148,16 +1189,18 @@ client.on("messageCreate", async message => {
         message.channel.send({embeds:[embed]});
     }
     if(msg == `${prefix}quests`) {
+
+        count = fs.existsSync(`./data/quests/${message.author.id}.json`) ? JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`)).messages.count : 0;
+
         embed = new MessageEmbed()
             .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
             .setColor('ORANGE')
 			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
             .setTitle(`Your Available Quests`)
-            .addField(`Send 1000 Messages`, `${(fs.existsSync(`./data/quests/${message.author.id}.json`) ? JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`)).messages.count : 0)}/1000`)
-            .setFooter({text:`${prefix}claim to claim rewards on completion!`})
+            .setDescription((count >= 1000 ? "~~": "") + "`Send 1000 Messages`"+ (count >= 1000 ? "~~": "") + "\n+250 Coins, +2 User Rating \n\n"+(count >= 500 ? "~~": "") + "`Send 500 Messages`"+ (count >= 500 ? "~~": "") + "\n+100 Coins, +1 User Rating")
         message.channel.send({embeds:[embed]});
     }
-    if(msg == `${prefix}claim`) {
+    /* if(msg == `${prefix}claim`) {
 
         count = fs.existsSync(`./data/quests/${message.author.id}.json`) ? JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`)).messages.count : 0;
         claimed = fs.existsSync(`./data/quests/${message.author.id}.json`) ? JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`)).messages.claimed : false;
@@ -1193,6 +1236,13 @@ client.on("messageCreate", async message => {
         d = get(message.author.id);
         if(!isLocked(message.author.id)) d.balance += 200;
         set(message.author.id, d);
+    } */
+    if(msg == `${prefix}inventory`) {
+        embed = new MessageEmbed()
+            .setColor('DARK_BLUE')
+            .setAuthor({ name: `${message.author.username}'s Inventory`, iconURL: message.author.displayAvatarURL() })
+            .setDescription(`Inventory is empty.`)
+        message.channel.send({embeds:[embed]});
     }
     if(msg == `${prefix}help`) {
         embed = new MessageEmbed()
@@ -1205,9 +1255,9 @@ client.on("messageCreate", async message => {
             .addField(`${prefix}wallet OR ${prefix}w @user`, `Allows you to view the wallet of yourself or others.`)
             .addField(`${prefix}econinfo`, `Displays the current configurations of the economy.`)
             .addField(`${prefix}quests`, `Shows your daily progress on todays quest.`)
-            .addField(`${prefix}claim`, `Claim the rewards from any completed quests.`)
             .addField(`${prefix}fight @user bet`, `Allows you to fight other users!`)
             .addField(`${prefix}rep @user <+/-> <reason>`, `Allows you comment on another user.`)
+            .addField(`${prefix}inventory`, `Displays the contents of your inventory.`)
 
         message.channel.send({embeds:[embed]});
     }
