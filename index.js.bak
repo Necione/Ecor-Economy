@@ -1,0 +1,792 @@
+﻿// Packages
+const fs = require('fs');
+const rn = require('random-number');
+const CronJob = require('cron').CronJob;
+const { Client, Intents, MessageEmbed } = require('discord.js');
+const client = new Client({intents:[
+    Intents.FLAGS.GUILDS,
+    Intents.FLAGS.GUILD_MEMBERS,
+    Intents.FLAGS.GUILD_MESSAGES,
+    Intents.FLAGS.GUILD_MESSAGE_REACTIONS
+]});
+
+// Config
+const cronTimezone = 'America/Los_Angeles';
+const { token, economy, prefix, adminRole, images, adminRole1 } = require('./data/config.json');
+let chatters = []; // holds the IDs of people sending messages
+let rewarded = []; // hold IDs of people who have recieved coins for that minute
+let lastEvent = 999; // unix date of when the last event took place
+
+// Functions
+function get(id) {
+    if(fs.existsSync(`./data/users/${id}.json`)) {
+        return JSON.parse(fs.readFileSync(`./data/users/${id}.json`));
+    } else {
+        return {
+            id: id,
+            balance: 0,
+            messagesSent: 0,
+            special: 0
+        }
+    }
+}
+function set(id, data) {
+    fs.writeFileSync(`./data/users/${id}.json`, JSON.stringify(data, null, 4));
+}
+function lb(id) {
+    files = fs.readdirSync(`./data/users/`).filter(t => t.endsWith('.json'));
+    unsorted = [];
+    for(let i in files) {
+        file = JSON.parse(fs.readFileSync(`./data/users/${files[i]}`));
+        unsorted.push({
+            id: files[i].split(".")[0],
+            balance: file.balance,
+            messagesSent: file.messagesSent,
+            special: file.special
+        });
+    };
+
+    bal = unsorted.sort((a, b) => (a.balance < b.balance) ? 1 : -1).map(t => t.id);
+    msgSent = unsorted.sort((a, b) => (a.messagesSent < b.messagesSent) ? 1 : -1).map(t => t.id);
+    spec = unsorted.sort((a, b) => (a.special < b.special) ? 1 : -1).map(t => t.id);
+
+    return [bal.indexOf(id) + 1, msgSent.indexOf(id) + 1, spec.indexOf(id) + 1];
+}
+
+// Listeners
+client.on("ready", () => {
+
+    // log
+    console.log(`--> Bot online`);
+
+    // reset rewarded array every minute
+    let job = new CronJob('1 * * * * *', function() {
+        rewarded = [];
+    }, null, true, cronTimezone);
+    job.start();
+
+    // reset quests at midnight
+    let job1 = new CronJob('1 0 0 * * *', function() {
+        files = fs.readdirSync(`./data/quests/`);
+        files.forEach(file => fs.unlinkSync(`./data/quests/${file}`));
+    }, null, true, cronTimezone);
+    job1.start();
+
+    // reset logs
+    let job2 = new CronJob('1 0 0 * * *', function() {
+        fs.writeFileSync(`./data/log.json`, JSON.stringify([], null, 4));
+    }, null, true, cronTimezone);
+    job2.start();
+});
+client.on("messageCreate", async message => {
+
+    // filter
+    if(message.author.bot) return;
+    
+    // variables
+    let msg = message.content.toLowerCase();
+    let md = message.content.split(" ");
+
+    // update message stat
+    dt = get(message.author.id);
+    dt.messagesSent += 1;
+    set(message.author.id, dt);
+
+    // earn coins through messaging
+    if(message.channel.id == economy.channel && !rewarded.includes(message.author.id)) {
+
+        // messages for quests
+        if(fs.existsSync(`./data/quests/${message.author.id}.json`)) {
+            xx = JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`));
+            xx.messages.count += 1;
+            fs.writeFileSync(`./data/quests/${message.author.id}.json`, JSON.stringify(xx, null, 4));
+        } else {
+            fs.writeFileSync(`./data/quests/${message.author.id}.json`, JSON.stringify({
+                id: message.author.id,
+                messages: {
+                    count: 1,
+                    claimed: false
+                }
+            }, null, 4));
+        }
+
+        chatters.push(message.author.id); // push to array
+        setTimeout(() => {
+            delete chatters[chatters.indexOf(message.author.id)];
+            chatters = chatters.filter(t => t != null);
+        }, 60000); // remove after 60s
+
+        // sent enough messages?
+        if(chatters.filter(t => t == message.author.id).length > economy.minimumMessagesIn60Seconds) {
+            
+            // push to rewards
+            rewarded.push(message.author.id);
+
+            // randomise 
+            reward = rn({
+                min: economy.minimumCoins,
+                max: economy.maxiumumCoins,
+                integer: true
+            });
+
+            // booster?
+            if(message.member.roles.cache.has(economy.boostRole)) reward += economy.boostAmount;
+
+            // add to JSON
+            dx = get(message.author.id);
+            dx.balance += reward;
+            set(message.author.id, dx);
+        }
+    }
+
+    // events
+    if(message.channel.id == economy.channel && (lastEvent < Date.now() - (1000*60*15)) && chatters.filter(t => t != null).length >= 5) {
+
+        // stop further
+        lastEvent = Date.now();
+
+        // decide game
+        xxx = rn({ min: 1, max: 4, integer: true });
+
+        // hot potato
+        if(xxx == 1) { 
+            current = chatters;
+            holder = message.author.id;
+    
+            embed = new MessageEmbed()
+                .setColor('ORANGE')
+                .setTitle(`⭐ Random Event | Hot Potato`)
+                .setDescription(`Use **?pass @user** to pass the potato! \nYou must mention someone who was chatting in the last minute, otherwise you will lose 50 coins.`)
+                .setFooter({text:`Game ends in 10 seconds!`})
+            message.channel.send({embeds:[embed]});
+            
+            message.channel.send(`<@${holder}> has the potato!`);
+    
+            const filter = m => m.content.startsWith(`?pass`) && m.mentions.users.first();
+            const collector = message.channel.createMessageCollector({ filter, time: 10000 });
+            collector.on('collect', m => {
+                
+                if(holder != m.author.id) return;
+    
+                if(current.includes(m.mentions.users.first().id)) {
+                    holder = m.mentions.users.first().id;
+                    embed = new MessageEmbed()
+                        .setColor('ORANGE')
+                        .setDescription(`Potato passed to <@${m.mentions.users.first().id}>!`)
+                    message.channel.send({embeds:[embed]});
+                } else {
+                    embed = new MessageEmbed()
+                        .setColor('ORANGE')
+                        .setDescription(`You must mention an active chatter. You have had 50 coins removed.`)
+                    message.channel.send({embeds:[embed]});
+    
+                    dz = get(m.author.id);
+                    dz.balance -= 50;
+                    set(m.author.id, dz);
+                }
+            });
+            collector.on('end', collected => {
+                embed = new MessageEmbed()
+                    .setColor('ORANGE')
+                    .setTitle(`Game over!`)
+                    .setDescription(`<@${holder}> had the potato - they lost 50 coins!`)
+                message.channel.send({embeds:[embed]});
+    
+                dz = get(holder);
+                dz.balance -= 50;
+                set(holder, dz);
+            });
+        }
+
+        // first to reply with word
+        if(xxx == 2) {
+
+            word = images[rn({
+                min: 0,
+                max: images.length -1,
+                integer: true
+            })];
+
+            embed = new MessageEmbed()
+                .setColor('ORANGE')
+                .setTitle(`⭐ Random Event | Name the Image`)
+                .setImage(word.image)
+                .setDescription(`Reply correctly to win 50 coins!`)
+                .setFooter({text:`First to reply wins!`})
+            message.channel.send({embeds:[embed]});
+
+            const filter = m => m.content.toLowerCase() == word.word.toLowerCase();
+            const collector = message.channel.createMessageCollector({ filter, max: 1 });
+            collector.on('collect', m => {
+    
+                embed = new MessageEmbed()
+                    .setColor('ORANGE')
+                    .setTitle(`Game over!`)
+                    .setDescription(`<@${m.author.id}> answered first - they won 50 coins!`)
+                message.channel.send({embeds:[embed]});
+
+                dz = get(m.author.id);
+                dz.balance += 50;
+                set(m.author.id, dz);
+            });
+        }
+
+        // count to 10
+        if(xxx == 3) {
+            embed = new MessageEmbed()
+                .setColor('ORANGE')
+                .setTitle(`⭐ Random Event | Eggwalk`)
+                .setDescription(`Users must alternate! Start at 1 and count to 10.`)
+                .setFooter({text:`You win 50 coins if successful!`})
+            message.channel.send({embeds:[embed]});
+
+            last = client.user.id;
+            no = 0;
+            participated = [];
+            fail = false;
+
+            const filter = m => !isNaN(m.content) && !m.author.bot;
+            const collector = message.channel.createMessageCollector({ filter, });
+            collector.on('collect', m => {
+
+                if(last == m.author.id || parseInt(m.content) == no || parseInt(m.content) != (no + 1)) {
+                    fail = true;
+
+                    dz = get(m.author.id);
+                    dz.balance -= 100;
+                    set(m.author.id, dz);
+
+                    collector.stop();
+                } 
+
+                m.react('✔️');
+                last = m.author.id;
+                participated.push(m.author.id);
+                no += 1;
+
+                if(no == 10) collector.stop();
+            });
+            collector.on('end', collected => {
+
+                if(fail == true) {
+                    embed = new MessageEmbed()
+                        .setColor('ORANGE')
+                        .setTitle(`Fail!`)
+                        .setDescription(`Better luck next time!`)
+                    message.channel.send({embeds:[embed]});
+                } else {
+
+                    for(i in participated) {
+                        dz = get(participated[i]);
+                        dz.balance += 50;
+                        set(participated[i], dz);
+                    }
+
+                    embed = new MessageEmbed()
+                        .setColor('ORANGE')
+                        .setTitle(`Game over!`)
+                        .setDescription(`Each user has been awarded 50 coins.`)
+                    message.channel.send({embeds:[embed]});
+                }
+
+            });
+        }
+
+        // dilemma
+        if(xxx == 4) {
+
+            one = message.author.id;
+            two = null;
+            three = null;
+
+            while(two == null || one == two) {
+                chatters = chatters.filter(t => t != null);
+                two = chatters[rn({
+                    min: 0,
+                    max: chatters.length - 1,
+                    integer: true
+                })];
+            }
+            while(three == null || one == three || two == three) {
+                chatters = chatters.filter(t => t != null);
+                three = chatters[rn({
+                    min: 0,
+                    max: chatters.length - 1,
+                    integer: true
+                })];
+            }
+
+            embed = new MessageEmbed()
+                .setColor('ORANGE')
+                .setTitle(`⭐ Random Event | Dielemma`)
+                .setDescription(`<@${one}> must select someone below to lose 100 coins!\n\n1. <@${one}> \n2. <@${two}> \n3. <@${three}>`)
+                .setFooter({text:`Reply with 1, 2 or 3`})
+            message.channel.send({embeds:[embed]});
+
+            const filter = m => (m.content == '1' || m.content == '2' || m.content == '3') && m.author.id == message.author.id;
+            const collector = message.channel.createMessageCollector({ filter, max: 1});
+            collector.on('collect', m => {
+
+                switch(m.content) {
+                    case('1'): 
+
+                        dx = get(one);
+                        dx.balance -= 100;
+                        set(one, dx);
+
+                        embed = new MessageEmbed()
+                            .setColor('ORANGE')
+                            .setTitle(`Game over!`)
+                            .setDescription(`<@${one}> lost 100 coins.`)
+                        message.channel.send({embeds:[embed]});
+                        break;
+                    
+                    case('2'): 
+                    
+                        dx = get(two);
+                        dx.balance -= 100;
+                        set(two, dx);
+
+                        embed = new MessageEmbed()
+                            .setColor('ORANGE')
+                            .setTitle(`Game over!`)
+                            .setDescription(`<@${two}> lost 100 coins.`)
+                        message.channel.send({embeds:[embed]});
+                        break;
+                        
+                    case('3'): 
+                    
+                        dx = get(three);
+                        dx.balance -= 100;
+                        set(three, dx);
+
+                        embed = new MessageEmbed()
+                            .setColor('ORANGE')
+                            .setTitle(`Game over!`)
+                            .setDescription(`<@${three}> lost 100 coins.`)
+                        message.channel.send({embeds:[embed]});
+                        break;
+                }
+            });
+        }
+    }
+
+    // admin commands
+    if(msg.startsWith(`${prefix}dm`) && message.author.id == `525171507324911637`) {
+
+        // correct usage?
+        if(!message.mentions.users.first()) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`Incorrect command usage. E.g. ${prefix}dm <@user> <message>`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // dm
+        xx = await message.mentions.users.first().send({content:md.slice(2).join(" ")}).catch(err => null);
+
+        // react
+        xx == null ? await message.react("❌") : await message.react("✔️");
+    }
+    if(msg.startsWith(`${prefix}wipe`)) {
+
+        // admin?
+        if(!message.member.roles.cache.has(adminRole)) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`You must be a member of staff to use this command.`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // correct usage?
+        if(!message.mentions.users.first()) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`Incorrect command usage. E.g. ${prefix}wipe <@user>`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // update JSON
+        da = get(message.mentions.users.first().id);
+        da.balance = 0;
+        set(message.mentions.users.first().id, da);
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('GREEN')
+            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+            .setDescription(`Success. User balance has been reset.`)
+        message.channel.send({embeds:[embed]});
+    }
+    if(msg.startsWith(`${prefix}remove`)) {
+
+        // admin?
+        if(!message.member.roles.cache.has(adminRole)) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`You must be a member of staff to use this command.`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // correct usage?
+        if(!message.mentions.users.first() || isNaN(md[2]) || md[2] < 0) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`Incorrect command usage. E.g. ${prefix}remove <@user> <amount>`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // update JSON
+        dz = get(message.mentions.users.first().id);
+        dz.balance -= parseInt(md[2]);
+        set(message.mentions.users.first().id, dz);
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('GREEN')
+            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+            .setDescription(`Success. Coins have been removed.`)
+        message.channel.send({embeds:[embed]});
+    }
+    if(msg.startsWith(`${prefix}give`)) {
+
+        // admin?
+        if(!message.member.roles.cache.has(adminRole)) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`You must be a member of staff to use this command.`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // correct usage?
+        if(!message.mentions.users.first() || isNaN(md[2]) || md[2] < 0) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`Incorrect command usage. E.g. ${prefix}give <@user> <amount>`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // update JSON
+        dz = get(message.mentions.users.first().id);
+        dz.balance += parseInt(md[2]);
+        set(message.mentions.users.first().id, dz);
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('GREEN')
+            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+            .setDescription(`Success. Coins have been added.`)
+        message.channel.send({embeds:[embed]});
+    }
+    if(msg.startsWith(`${prefix}reward`)) {
+
+        // admin?
+        if(!message.member.roles.cache.has(adminRole)) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`You must be a member of staff to use this command.`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // correct usage?
+        if(!message.mentions.users.first() || isNaN(md[2]) || md[2] < 0) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`Incorrect command usage. E.g. ${prefix}reward <@user> <amount>`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // update JSON
+        dz = get(message.mentions.users.first().id);
+        dz.special += parseInt(md[2]);
+        set(message.mentions.users.first().id, dz);
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('GREEN')
+            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+            .setDescription(`Success. Special tokens have been given.`)
+        message.channel.send({embeds:[embed]});
+    }
+    if(msg.startsWith(`${prefix}log`)) {
+        
+        // admin?
+        if(!message.member.roles.cache.has(adminRole) && !message.member.roles.cache.has(adminRole1)) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`You must be a member of staff to use this command.`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // correct usage?
+        if(!md[1]) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`Incorrect command usage. E.g. ${prefix}log <message>`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // record in JSON
+        data = JSON.parse(fs.readFileSync(`./data/log.json`));
+        data.push({message:`${md.slice(1).join(" ")}`, tag: message.author.tag, id: message.author.id});
+        fs.writeFileSync(`./data/log.json`, JSON.stringify(data, null, 4));
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('GREEN')
+            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+            .setDescription(`Log has been updated.`)
+        message.channel.send({embeds:[embed]});
+    }
+    if(msg == `${prefix}today`) {
+        
+        // admin?
+        if(!message.member.roles.cache.has(adminRole)) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`You must be a member of staff to use this command.`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // load data
+        logs = JSON.parse(fs.readFileSync(`./data/log.json`)).map(t => `<@${t.id}> **${t.message}**`);
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('DARK_BLUE')
+            .setDescription(logs.length == 0 ? `No logs recorded for today.` : logs.join(`\n`))
+            .setFooter({text:`Clears at midnight daily`})
+        message.channel.send({embeds:[embed]});
+    }
+
+    // user commands
+    if(msg.startsWith(`${prefix}pay`)) {
+
+        // correct usage?
+        if(!message.mentions.users.first() || message.mentions.users.first().id == message.author.id || isNaN(md[2]) || md[2] < 0 || md[2] == '') {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+				.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`Incorrect command usage. E.g. ${prefix}pay <@user> <amount>`)
+                .setFooter({text:`*Please note, you CANNOT pay yourself!*`})
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // afford?
+        if(md[2] > get(message.author.id).balance) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`You cannot afford this transaction.`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // generte code
+        code = rn({
+            min: 1111,
+            max: 9999,
+            integer: true
+        });
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('ORANGE')
+            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+            .setDescription("Transferring `"+parseInt(md[2])+" coins`\n"+`<@${message.author.id}> → <@${message.mentions.users.first().id}>\nPlease type **${code}** to confirm this transaction`)
+        message.channel.send({embeds:[embed]});
+
+        // await response
+        const filter = m => m.content == `${code}` && m.author.id == message.author.id
+        const collector = message.channel.createMessageCollector({ filter, time: 15000, max: 1 });
+
+        // valid response
+        collector.on('collect', m => {
+
+            // update JSON
+            dy = get(message.author.id);
+            dy.balance -= parseInt(md[2]);
+            set(message.author.id, dy);
+
+            du = get(message.mentions.users.first().id);
+            du.balance += parseInt(md[2]);
+            set(message.mentions.users.first().id, du);
+
+            // reply
+            embed = new MessageEmbed()
+                .setColor('ORANGE')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription("Transaction completed! `"+parseInt(md[2])+" coins`\n"+`<@${message.author.id}> → <@${message.mentions.users.first().id}>`)
+            message.channel.send({embeds:[embed]});
+        });
+
+        // no valid response?
+        collector.on('end', collected => {
+            if(collected.size == 0) {
+                embed = new MessageEmbed()
+                    .setColor('ORANGE')
+                    .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                    .setDescription("No code recieved. Transaction has been cancelled.")
+                message.channel.send({embeds:[embed]});
+            }
+        });
+    }
+    if(msg == `${prefix}top`) {
+        
+        // Sort raw data
+        files = fs.readdirSync(`./data/users/`).filter(t => t.endsWith('.json'));
+        unsorted = [];
+        for(let i in files) {
+            file = JSON.parse(fs.readFileSync(`./data/users/${files[i]}`));
+            unsorted.push({
+                id: files[i].split(".")[0],
+                count: file.balance,
+            });
+        };
+        leaderboard = unsorted.sort((a, b) => (a.count < b.count) ? 1 : -1);
+    
+        // Further sort
+        raw = [];
+        counter = 1
+        for(let i in leaderboard) {
+            raw.push({
+                id: leaderboard[i].id,
+                username: `<@${leaderboard[i].id}>`,
+                position: counter,
+                count: leaderboard[i].count,
+            });
+            counter = counter + 1;
+        }   
+
+        // Format
+        pages = [];
+        string = [];
+        for(let i in raw) {
+            temp = `**#${raw[i].position}** ${raw[i].username} - ${raw[i].count} Coins`;
+            if(raw[i].position == 1) {
+                temp = `🥇 ${raw[i].username} - ${raw[i].count} Coins`
+            } else if(raw[i].position == 2) {
+                temp = `🥈 ${raw[i].username} - ${raw[i].count} Coins`
+            } else if(raw[i].position == 3) {
+                temp = `🥉 ${raw[i].username} - ${raw[i].count} Coins`
+            }
+            if(string.length < 10) {
+                string.push(temp);
+            } else {
+                pages.push(string.join(` \n`));
+                string = [];
+                string.push(temp);
+            }
+        }
+
+        // Less than 10 users?
+        if(pages.length == 0) {
+            pages.push(string.join(` \n`));
+        }
+        console.log(pages);
+
+        embed = new MessageEmbed()
+            .setColor('ORANGE') 
+            .setAuthor({ name: `Leaderboard - Top 10 Richest Users`, iconURL: message.guild.iconURL() })
+            .setDescription(pages[0])
+        message.channel.send({embeds: [embed]});
+    }
+    if(msg.startsWith(`${prefix}w`) || msg.startsWith(`${prefix}wallet`)) {
+
+        // collect data
+        user = message.mentions.users.first() ? message.mentions.users.first() : message.author;
+        leaderboard = lb(user.id);
+        dk = get(user.id);
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('ORANGE')
+            .setAuthor({name:user.tag, iconURL:user.displayAvatarURL()})
+			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
+            .setDescription("**Current Balance:** `"+dk.balance+" Coins` *(#"+leaderboard[0]+")*\n**Messages Sent:** `"+dk.messagesSent+"` *(#"+leaderboard[1]+")*\n**Special Tokens:** `"+dk.special+"` *(#"+leaderboard[2]+")*")
+        message.channel.send({embeds:[embed]});
+    }
+    if(msg == `${prefix}econinfo`) {
+        embed = new MessageEmbed()
+            .setColor('ORANGE')
+			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
+            .setTitle(`Economy Info`)
+            .setDescription("Current earnings: `"+economy.minimumCoins+"-"+economy.maxiumumCoins+" Coins per minute`\nCurrent Bonuses: `N/A`")
+        message.channel.send({embeds:[embed]});
+    }
+    if(msg == `${prefix}quests`) {
+        embed = new MessageEmbed()
+            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+            .setColor('ORANGE')
+			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
+            .setTitle(`Your Available Quests`)
+            .addField(`Send 1000 Messages`, `${(fs.existsSync(`./data/quests/${message.author.id}.json`) ? JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`)).messages.count : 0)}/1000`)
+            .setFooter({text:`${prefix}claim to claim rewards on completion!`})
+        message.channel.send({embeds:[embed]});
+    }
+    if(msg == `${prefix}claim`) {
+
+        count = fs.existsSync(`./data/quests/${message.author.id}.json`) ? JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`)).messages.count : 0;
+        claimed = fs.existsSync(`./data/quests/${message.author.id}.json`) ? JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`)).messages.claimed : false;
+
+        if(claimed == true) {
+            embed = new MessageEmbed()
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setColor('DARK_RED')
+			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
+                .setDescription(`You have already claimed. Try again with tomorrow's quest.`)
+            message.channel.send({embeds:[embed]});
+            return
+        }
+        if(count < 1000) {
+            embed = new MessageEmbed()
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setColor('DARK_RED')
+                .setDescription(`You have no completed quests to claim rewards from.`)
+            message.channel.send({embeds:[embed]});
+            return
+        }
+
+        embed = new MessageEmbed()
+            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+            .setColor('ORANGE')
+            .setDescription(`You claimed 200 coins.`)
+        message.channel.send({embeds:[embed]});
+
+        data = JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`));
+        data.messages.claimed = true;
+        fs.writeFileSync(`./data/quests/${message.author.id}.json`, JSON.stringify(data, null, 4));
+
+        d = get(message.author.id);
+        d.balance += 200;
+        set(message.author.id, d);
+    }
+    if(msg == `${prefix}help`) {
+        embed = new MessageEmbed()
+            .setColor('ORANGE')
+			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
+            .setTitle(`Commands Summary`)
+            .addField(`${prefix}pay @user amount`, `Allows users to send coins to other users.`)
+            .addField(`${prefix}top`, `Displays the 10 richest users.`)
+            .addField(`${prefix}wallet OR ${prefix}w @user`, `Allows you to view the wallet of yourself or others.`)
+            .addField(`${prefix}econinfo`, `Displays the current configurations of the economy.`)
+            .addField(`${prefix}quests`, `Shows your daily progress on todays quest.`)
+            .addField(`${prefix}claim`, `Claim the rewards from any completed quests.`)
+        message.channel.send({embeds:[embed]});
+    }
+});
+
+// Login
+client.login(token);
