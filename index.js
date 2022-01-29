@@ -107,38 +107,40 @@ client.on("messageCreate", async message => {
     set(message.author.id, dt);
 
     // quests
-    if(fs.existsSync(`./data/quests/${message.author.id}.json`)) {
-        xx = JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`));
-
-        if(xx.messages.count >= 1000 && xx.messages.claimed == false) {
-            xx.messages.claimed = true;
-
-            yy = get(message.author.id);
-            if(!isLocked(message.author.id)) yy.balance += 250;
-            if(!yy.staffCredits) yy.staffCredits = 0;
-            yy.staffCredits += 2;
-            set(message.author.id, yy);
-        } else if(xx.messages.count >= 500 && xx.messages.claimed1 == false) {
-            xx.messages.claimed1 = true;
-
-            yy = get(message.author.id);
-            if(!isLocked(message.author.id)) yy.balance += 100;
-            if(!yy.staffCredits) yy.staffCredits = 0;
-            yy.staffCredits += 1;
-            set(message.author.id, yy);
-        }
-
-        xx.messages.count += 1;
-        fs.writeFileSync(`./data/quests/${message.author.id}.json`, JSON.stringify(xx, null, 4));
-    } else {
-        fs.writeFileSync(`./data/quests/${message.author.id}.json`, JSON.stringify({
-            id: message.author.id,
-            messages: {
-                count: 1,
-                claimed: false, // 1000 messages (250 coins, 2 rep)
-                claimed1: false // 500 messages (100 coins, 1 rep)
+    if(message.channel.id == economy.channel) {
+        if(fs.existsSync(`./data/quests/${message.author.id}.json`)) {
+            xx = JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`));
+    
+            if(xx.messages.count >= 1000 && xx.messages.claimed == false) {
+                xx.messages.claimed = true;
+    
+                yy = get(message.author.id);
+                if(!isLocked(message.author.id)) yy.balance += 250;
+                if(!yy.staffCredits) yy.staffCredits = 0;
+                yy.staffCredits += 2;
+                set(message.author.id, yy);
+            } else if(xx.messages.count >= 500 && xx.messages.claimed1 == false) {
+                xx.messages.claimed1 = true;
+    
+                yy = get(message.author.id);
+                if(!isLocked(message.author.id)) yy.balance += 100;
+                if(!yy.staffCredits) yy.staffCredits = 0;
+                yy.staffCredits += 1;
+                set(message.author.id, yy);
             }
-        }, null, 4));
+    
+            xx.messages.count += 1;
+            fs.writeFileSync(`./data/quests/${message.author.id}.json`, JSON.stringify(xx, null, 4));
+        } else {
+            fs.writeFileSync(`./data/quests/${message.author.id}.json`, JSON.stringify({
+                id: message.author.id,
+                messages: {
+                    count: 1,
+                    claimed: false, // 1000 messages (250 coins, 2 rep)
+                    claimed1: false // 500 messages (100 coins, 1 rep)
+                }
+            }, null, 4));
+        }
     }
 
     // earn coins through messaging
