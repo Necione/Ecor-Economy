@@ -1197,7 +1197,7 @@ client.on("messageCreate", async message => {
             .setColor('ORANGE')
 			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
             .setTitle(`Your Available Quests`)
-            .setDescription((count >= 1000 ? "~~": "") + "`Send 1000 Messages`"+ (count >= 1000 ? "~~": "") + " ["+score+"/1000]\n+250 Coins, +2 User Rating \n\n"+(count >= 500 ? "~~": "") + "`Send 500 Messages`"+ (count >= 500 ? "~~": "") + " ["+score+"/500]\n+100 Coins, +1 User Rating")
+            .setDescription((count >= 1000 ? "~~": "") + "`Send 1000 Messages`"+ (count >= 1000 ? "~~": "") + " ["+count+"/1000]\n+250 Coins, +2 User Rating \n\n"+(count >= 500 ? "~~": "") + "`Send 500 Messages`"+ (count >= 500 ? "~~": "") + " ["+count+"/500]\n+100 Coins, +1 User Rating")
         message.channel.send({embeds:[embed]});
     }
     if(msg == `${prefix}inventory`) {
