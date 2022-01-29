@@ -1197,46 +1197,9 @@ client.on("messageCreate", async message => {
             .setColor('ORANGE')
 			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
             .setTitle(`Your Available Quests`)
-            .setDescription((count >= 1000 ? "~~": "") + "`Send 1000 Messages`"+ (count >= 1000 ? "~~": "") + "\n+250 Coins, +2 User Rating \n\n"+(count >= 500 ? "~~": "") + "`Send 500 Messages`"+ (count >= 500 ? "~~": "") + "\n+100 Coins, +1 User Rating")
+            .setDescription((count >= 1000 ? "~~": "") + "`Send 1000 Messages`"+ (count >= 1000 ? "~~": "") + " ["+score+"/1000]\n+250 Coins, +2 User Rating \n\n"+(count >= 500 ? "~~": "") + "`Send 500 Messages`"+ (count >= 500 ? "~~": "") + " ["+score+"/500]\n+100 Coins, +1 User Rating")
         message.channel.send({embeds:[embed]});
     }
-    /* if(msg == `${prefix}claim`) {
-
-        count = fs.existsSync(`./data/quests/${message.author.id}.json`) ? JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`)).messages.count : 0;
-        claimed = fs.existsSync(`./data/quests/${message.author.id}.json`) ? JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`)).messages.claimed : false;
-
-        if(claimed == true) {
-            embed = new MessageEmbed()
-                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setColor('DARK_RED')
-			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
-                .setDescription(`You have already claimed. Try again with tomorrow's quest.`)
-            message.channel.send({embeds:[embed]});
-            return
-        }
-        if(count < 1000) {
-            embed = new MessageEmbed()
-                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setColor('DARK_RED')
-                .setDescription(`You have no completed quests to claim rewards from.`)
-            message.channel.send({embeds:[embed]});
-            return
-        }
-
-        embed = new MessageEmbed()
-            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-            .setColor('ORANGE')
-            .setDescription(`You claimed 200 coins.`)
-        message.channel.send({embeds:[embed]});
-
-        data = JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`));
-        data.messages.claimed = true;
-        fs.writeFileSync(`./data/quests/${message.author.id}.json`, JSON.stringify(data, null, 4));
-
-        d = get(message.author.id);
-        if(!isLocked(message.author.id)) d.balance += 200;
-        set(message.author.id, d);
-    } */
     if(msg == `${prefix}inventory`) {
         embed = new MessageEmbed()
             .setColor('DARK_BLUE')
