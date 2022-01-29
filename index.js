@@ -115,6 +115,7 @@ client.on("messageCreate", async message => {
 
             yy = get(message.author.id);
             if(!isLocked(message.author.id)) yy.balance += 250;
+            if(!yy.staffCredits) yy.staffCredits = 0;
             yy.staffCredits += 2;
             set(message.author.id, yy);
         } else if(xx.messages.count >= 500 && xx.messages.claimed1 == false) {
@@ -122,6 +123,7 @@ client.on("messageCreate", async message => {
 
             yy = get(message.author.id);
             if(!isLocked(message.author.id)) yy.balance += 100;
+            if(!yy.staffCredits) yy.staffCredits = 0;
             yy.staffCredits += 1;
             set(message.author.id, yy);
         }
