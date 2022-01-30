@@ -1474,7 +1474,7 @@ client.on("messageCreate", async message => {
         if(data.farm[slot].lastWatered != null && data.farm[slot].lastWatered > (Date.now() - (1000*60*60*3))) {
             embed = new MessageEmbed()
                 .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
-                .setDescription(`You watered this plant too recently! Try again in ${Math.floor((data.farm[slot].lastWatered - (Date.now() - (1000*60*60*3)) / (1000*60))} minute(s).`)
+                .setDescription(`You watered this plant too recently! Try again in ${Math.floor((data.farm[slot].lastWatered - (Date.now() - (1000*60*60*3))) / (1000*60))} minute(s).`)
                 .setColor('DARK_RED')
             message.channel.send({embeds:[embed]});
             return
