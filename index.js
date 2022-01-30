@@ -1474,7 +1474,7 @@ client.on("messageCreate", async message => {
         if(data.farm[slot].lastWatered != null && data.farm[slot].lastWatered > (Date.now() - (1000*60*60*3))) {
             embed = new MessageEmbed()
                 .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
-                .setDescription(`You watered this plant too recently! Try again in ${Math.floor((data.farm[slot].lastWatered - (Date.now() - (1000*60*60*3))) / (1000*60))} minute(s).`)
+                .setDescription(`You watered this plant too recently! Try again in ${Math.floor((data.farm[slot].lastWatered - (Date.now() - (1000*60*60*3))    ) / (1000*60))} minute(s).`)
                 .setColor('DARK_RED')
             message.channel.send({embeds:[embed]});
             return
@@ -1545,11 +1545,11 @@ client.on("messageCreate", async message => {
 
         type = null;
         if(chance >= 95) {
-            type = { name: `Super Good Quality`, value: (data.farm[slot].price + 200) };
+            type = { name: `Super Good Quality`, value: Math.floor(data.farm[slot].price * 1.15) };
         } else if(chance > 20) {
-            type = { name: `Good Quality`, value: (data.farm[slot].price + 50) }
+            type = { name: `Good Quality`, value: Math.floor(data.farm[slot].price * 1.05) }
         } else {
-            type = { name: `Bad Quality`, value: (data.farm[slot].price - 50) };
+            type = { name: `Bad Quality`, value: Math.floor(data.farm[slot].price * 0.95) };
         }
         data.farm[slot] = null;
         fs.writeFileSync(`./data/farm/${message.author.id}.json`, JSON.stringify(data, null, 4));
