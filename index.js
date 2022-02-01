@@ -1531,7 +1531,7 @@ client.on("messageCreate", async message => {
         }   
 
         // ready to harvest?
-        if(data.farm[slot].wateringComplete != data.farm[slot].wateringRequired) {
+        if(data.farm[slot].wateringComplete < data.farm[slot].wateringRequired) {
             embed = new MessageEmbed()
                 .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
                 .setDescription(`This plant isn't ready to harvest.`)
@@ -1551,6 +1551,12 @@ client.on("messageCreate", async message => {
         } else {
             type = { name: `Bad Quality`, value: Math.floor(data.farm[slot].price * 0.95) };
         }
+	    
+	// if plant was overwatered, convert to bad quality
+	if(data.farm[slot].wateringComplete > data.farm[slot].wateringRequired) {
+	    type = { name: `Bad Quality`, value: Math.floor(data.farm[slot].price * 0.95) };
+	}	
+	    
         data.farm[slot] = null;
         fs.writeFileSync(`./data/farm/${message.author.id}.json`, JSON.stringify(data, null, 4));
 
