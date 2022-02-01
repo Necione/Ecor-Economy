@@ -11,4 +11,4 @@ You can currently see the bot in action in the [Riven Discord](https://discord.g
 
 `@kiro 殺す#3080` - Bot hosting, backend, updates, etc.
 
-`@H4RB0R#6393` - Quality Assurance (heh)
+`@H4RB0R#6393` - Quality Assurance
