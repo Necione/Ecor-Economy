@@ -10,3 +10,5 @@ You can currently see the bot in action in the [Riven Discord](https://discord.g
 `@Neci#0627` - Creating the main functions of bot, updates, etc.
 
 `@kiro 殺す#3080` - Bot hosting, backend, updates, etc.
+
+`@H4RB0R#6393` - Quality Assurance (heh)
