@@ -1545,11 +1545,11 @@ client.on("messageCreate", async message => {
 
         type = null;
         if(chance >= 95) {
-            type = { name: `Super Good Quality`, value: Math.floor(data.farm[slot].price * 1.15) };
+            type = { name: `Super Good Quality`, value: Math.floor(data.farm[slot].price * 1.20) };
         } else if(chance > 20) {
-            type = { name: `Good Quality`, value: Math.floor(data.farm[slot].price * 1.05) }
+            type = { name: `Good Quality`, value: Math.floor(data.farm[slot].price * 1.10) }
         } else {
-            type = { name: `Bad Quality`, value: Math.floor(data.farm[slot].price * 0.95) };
+            type = { name: `Bad Quality`, value: Math.floor(data.farm[slot].price * 0.90) };
         }
         data.farm[slot] = null;
         fs.writeFileSync(`./data/farm/${message.author.id}.json`, JSON.stringify(data, null, 4));
