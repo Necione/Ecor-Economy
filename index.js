@@ -117,15 +117,13 @@ client.on("messageCreate", async message => {
                 yy = get(message.author.id);
                 if(!isLocked(message.author.id)) yy.balance += 250;
                 if(!yy.staffCredits) yy.staffCredits = 0;
-                yy.staffCredits += 2;
+                yy.staffCredits += 1;
                 set(message.author.id, yy);
             } else if(xx.messages.count >= 500 && xx.messages.claimed1 == false) {
                 xx.messages.claimed1 = true;
     
                 yy = get(message.author.id);
                 if(!isLocked(message.author.id)) yy.balance += 100;
-                if(!yy.staffCredits) yy.staffCredits = 0;
-                yy.staffCredits += 1;
                 set(message.author.id, yy);
             }
     
@@ -136,7 +134,7 @@ client.on("messageCreate", async message => {
                 id: message.author.id,
                 messages: {
                     count: 1,
-                    claimed: false, // 1000 messages (250 coins, 2 rep)
+                    claimed: false, // 1000 messages (250 coins, 1 rep)
                     claimed1: false // 500 messages (100 coins, 1 rep)
                 }
             }, null, 4));
@@ -1201,7 +1199,7 @@ client.on("messageCreate", async message => {
             .setColor('ORANGE')
 			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
             .setTitle(`Your Available Quests`)
-            .setDescription((count >= 1000 ? "~~": "") + "`Send 1000 Messages`"+ (count >= 1000 ? "~~": "") + " ["+count+"/1000]\n+250 Coins, +2 User Rating \n\n"+(count >= 500 ? "~~": "") + "`Send 500 Messages`"+ (count >= 500 ? "~~": "") + " ["+count+"/500]\n+100 Coins, +1 User Rating")
+            .setDescription((count >= 1000 ? "~~": "") + "`Send 1000 Messages`"+ (count >= 1000 ? "~~": "") + " ["+count+"/1000]\n+250 Coins, +1 User Rating \n\n"+(count >= 500 ? "~~": "") + "`Send 500 Messages`"+ (count >= 500 ? "~~": "") + " ["+count+"/500]\n+100 Coins")
         message.channel.send({embeds:[embed]});
     }
     if(msg == `${prefix}inventory`) {
@@ -1245,7 +1243,7 @@ client.on("messageCreate", async message => {
             .setTitle(`The Farm Store`)
             .setColor('GREEN')
             .setDescription(items.join("\n\n"))
-            .addField(`Crop Quality`, "`-` Super Good Quality sells for +200 coins from the original price.\n`-` Good Quality sells for +50 coins from the original price.\n`-` Bad Quality sells for -50 coins from the original price.")
+            .addField(`Crop Quality`, "`-` Super Good Quality sells for +20% coins from the original price.\n`-` Good Quality sells for +10% coins from the original price.\n`-` Bad Quality sells for -10% coins from the original price.")
         message.channel.send({ embeds: [embed] });
     }
     if(md[0].toLowerCase() == `${prefix}buy`) {
@@ -1329,15 +1327,22 @@ client.on("messageCreate", async message => {
             .setDescription(`Successfully purchased!\n${item.quantity}x `+"`"+itemFound.emoji+" "+itemFound.name+"` for **"+itemFound.price * item.quantity+" Coins**")
         message.channel.send({ embeds: [embed] });
     }
-    if(msg == `${prefix}farm`) {
+    if(md[0].toLowerCase() == `${prefix}farm`) {
+
+        // user
+        user = message.mentions.users.first() ? message.mentions.users.first() : message.author;
 
         // load data
         data = {
             id: message.author.id,
+            harvested: 0,
             farm: [null, null, null, null, null],
             purchased: []
         }
-        if(fs.existsSync(`./data/farm/${message.author.id}.json`)) data = JSON.parse(fs.readFileSync(`./data/farm/${message.author.id}.json`));
+        if(fs.existsSync(`./data/farm/${user.id}.json`)) data = JSON.parse(fs.readFileSync(`./data/farm/${user.id}.json`));
+
+        // good quality?
+        if(data.harvested >= 25 && data.farm.length != 6) data.farm.push(null);
 
         // check dates
         for(i = 0; i < data.farm.length; i++) {
@@ -1347,24 +1352,37 @@ client.on("messageCreate", async message => {
                 }
             }
         }
-        fs.writeFileSync(`./data/farm/${message.author.id}.json`, JSON.stringify(data, null, 4));
+        fs.writeFileSync(`./data/farm/${user.id}.json`, JSON.stringify(data, null, 4));
 
         // process
-        farm = data.farm.map(t => (t == null) ? "`🛑` **Empty**" : ("`"+t.emoji+"` **"+t.plantName+"**"+`${t.wateringComplete == t.wateringRequired ? ` Ready for harvest!` : ` - Watered ${t.wateringComplete}/${t.wateringRequired} times`}`));
+        farm = data.farm.map(t => (t == null) ? "`🛑` **Empty**" : ("`"+t.emoji+"` **"+t.plantName+"**"+`${t.wateringComplete == t.wateringRequired ? ` Ready for harvest!` : (t.wateringRequired < t.wateringComplete ? " Overwatered!" : ` - Watered ${t.wateringComplete}/${t.wateringRequired} times`) }`));
         storage = data.purchased.map(t => "`"+t.emoji+"` **"+t.name+"**");
+
+        storage = [];
+        for(i in data.purchased) {
+            if(!storage.filter(t => t.name == data.purchased[i].name)[0]) {
+                storage.push({ name: data.purchased[i].name, emoji: data.purchased[i].emoji, number: 1 });
+            } else {
+                for(x in storage) {
+                    if(storage[x].name == data.purchased[i].name) storage[x].number += 1;
+                }
+            }
+        }
+        storage = storage.map(t => "`"+t.emoji+"`"+` ${t.name} x${t.number}`);
 
         // display
         embed = new MessageEmbed()
             .setColor('ORANGE')
-            .setAuthor({ iconURL: message.author.displayAvatarURL(), name: `${message.author.tag}` })
+            .setAuthor({ iconURL: user.displayAvatarURL(), name: `${user.tag}` })
+            .setDescription(`**Harvested:** ${data.harvested == null ? data.harvested : 0} crops`)
             .addField(`Farm`, farm.join("\n"))
-            embed.addField(`Storage`, storage.length == 0 ? `No seedlings to plant!` : storage.join("\n"))
+            .addField(`Storage`, storage.length == 0 ? `No seedlings to plant!` : storage.join("\n"))
         message.channel.send({embeds:[embed]});
     }
     if(md[0].toLowerCase() == `${prefix}plant`) {
 
         // wrong usage?
-        if(!md[1] || isNaN(md[md.length - 1]) || md[md.length - 1] < 1 || md[md.length - 1] > 5) {
+        if(!md[1] || isNaN(md[md.length - 1]) || md[md.length - 1] < 1 || md[md.length - 1] > 6) {
             embed = new MessageEmbed()
                 .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
                 .setDescription(`Incorrect command usage. E.g. ${prefix}plant <item> <slot 1-5>`)
@@ -1406,7 +1424,7 @@ client.on("messageCreate", async message => {
         if(data.farm[item.slot - 1] != null) {
             embed = new MessageEmbed()
                 .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
-                .setDescription("`Slot "+item.slot+"` is in-use. You can only plant in an empty slot.")
+                .setDescription("`Slot "+item.slot+"` is in-use or is unavailable. You can only plant in an empty slot.")
                 .setColor('DARK_RED')
             message.channel.send({embeds:[embed]});
             return
@@ -1435,7 +1453,7 @@ client.on("messageCreate", async message => {
     if(md[0].toLowerCase() == `${prefix}water`) {
 
         // wrong usage?
-        if(md[1] < 1 || md[1] > 5) {
+        if(md[1] < 1 || md[1] > 6) {
             embed = new MessageEmbed()
                 .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
                 .setDescription(`Incorrect command usage. E.g. ${prefix}water <slot 1-5>`)
@@ -1545,12 +1563,17 @@ client.on("messageCreate", async message => {
 
         type = null;
         if(chance >= 95) {
-            type = { name: `Super Good Quality`, value: Math.floor(data.farm[slot].price * 1.15) };
+            type = { name: `Super Good Quality`, value: Math.floor(data.farm[slot].price * 1.2) };
         } else if(chance > 20) {
-            type = { name: `Good Quality`, value: Math.floor(data.farm[slot].price * 1.05) }
+            type = { name: `Good Quality`, value: Math.floor(data.farm[slot].price * 1.1) }
         } else {
-            type = { name: `Bad Quality`, value: Math.floor(data.farm[slot].price * 0.95) };
+            type = { name: `Bad Quality`, value: Math.floor(data.farm[slot].price * 0.9) };
         }
+
+        if(data.farm[slot].wateringComplete > data.farm[slot].wateringRequired) {
+            type = { name: `Bad Quality`, value: Math.floor(data.farm[slot].price * 0.9) };
+        }
+
         data.farm[slot] = null;
         fs.writeFileSync(`./data/farm/${message.author.id}.json`, JSON.stringify(data, null, 4));
 
@@ -1564,6 +1587,15 @@ client.on("messageCreate", async message => {
             .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
             .setDescription(`Sold! Your plant was deemed as **${type.name}** and was sold for **${type.value}** coins.`)
             .setColor('GREEN')
+        message.channel.send({embeds:[embed]});
+    }
+
+    // client made cmd
+    if(msg == `${prefix}index`) {
+        embed = new MessageEmbed()
+            .setColor('ORANGE')
+            .addField(`List of all Discovered Mutated Crops`, "`🌼 Mutated Wheat` Average 500 CPH\n`🥔 Mutated Potato` Average 800 CPH\n`🥕 Mutated Carrot` Average 1500 CPH\n`🌶️ Mutated Pepper` Average 2500 CPH")
+            .addField(`List of all Discovered Special Crops`, "`🌻 Sunflower` Average 750 CPH\n`🌿 Mint` Average 1000 CPH")
         message.channel.send({embeds:[embed]});
     }
 });
