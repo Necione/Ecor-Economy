@@ -1,5 +1,4 @@
 # Ecor Economy Discord Bot 🚀
-(Shrivel スノーパ)
 
 Ecor economy is an advanced, simple and easy to use Discord bot that includes a clean interface! We supply many different features most economy bots lack, such as **auctions, quests, user rating, etc.**
 
