@@ -11,6 +11,17 @@ You can currently see the bot in action in the [Shrivel Discord](https://discord
 - Commands include ?wallet, ?pay, ?top
 - Daily quests system using CronJob
 
+## Usage 🛠️
+1. Download all files and extract ZIP into new folder.
+2. Modify config.json in data to your liking (ensure everything is filled)
+3. Install a process manager such as PM2
+```
+npm install pm2 -g
+```
+4. Start the program using PM2
+```
+pm2 start index.js --name "Discord Bot"
+```
 
 ## Credits ⭐
 `@Neci#0627` - Creating the main functions of bot, updates, etc.
