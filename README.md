@@ -8,8 +8,8 @@ You can currently see the bot in action in the [Shrivel Discord](https://discord
 
 ## Functions 🍂
 - Advanced economy system based on messages sent per minute. A user must send a minimum of 3 messages in 60 seconds to get a random amount of coins (5-15)
-- User wallet tiers and systems. Your members can check their balance, pay eachother, and make money through talking!
-- Daily quests system using messages. Your members can earn reputation through completeing message-requirement quests daily!
+- User wallet tiers. Your members can check their balance, pay eachother, and make money through talking!
+- Your members can earn reputation and rewards through completeing message-requirement quests daily!
 - Mini-RPG. Your members can buy and harvest crops to make extra money!
 
 ## Usage 🛠️
