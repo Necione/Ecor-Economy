@@ -4,7 +4,7 @@ Ecor economy is an advanced, simple and easy to use Discord bot that includes a 
 
 This bot is still in __beta__ and will be released when all features and bugs are tested and fixed!
 
-You can currently see the bot in action in the [Riven Discord](https://discord.gg/riven).
+You can currently see the bot in action in the [Shrivel Discord](https://discord.gg/shrivel).
 
 ## Credits ⭐
 `@Neci#0627` - Creating the main functions of bot, updates, etc.
