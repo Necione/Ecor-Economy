@@ -2,8 +2,8 @@
     "token": "Redacted",
     "prefix": "?",
 
-    "adminRole": "967284888090849300",
-    "adminRole1": "967285080005435402",
+    "adminRole": "Channel ID",
+    "adminRole1": "Channel ID",
     "images": [
         {
             "word": "Beware the rain, beware the snow. Beware the man, you think you know.",
@@ -62,11 +62,11 @@
     ],
 
     "economy": {
-        "channel": "967282730838675456",
+        "channels": ["Channel ID", "Channel ID", "Channel ID"],
         "minimumMessagesIn60Seconds": 3,
         "minimumCoins": 5,
         "maxiumumCoins": 15,
-        "boostRole": "964753203361112115",
+        "boostRole": "Role ID",
         "boostAmount": 3
     },
 
@@ -80,19 +80,19 @@
                 "text": "Giveaways",
                 "description": "You will be pinged for all giveaways in the giveaway channel.",
                 "emoji": "🎁",
-                "roleID": "975493987265814628"
+                "roleID": "Role ID"
             },
             {
                 "text": "Events",
                 "description": "You will be pinged for all server events and tournaments.",
                 "emoji": "⚔️",
-                "roleID": "973423242649931786"
+                "roleID": "Role ID"
             },
             {
                 "text": "Announcements",
                 "description": "You will be pinged for all server related announcements and updates.",
                 "emoji": "📢",
-                "roleID": "973423149683187792"
+                "roleID": "Role ID"
             }
         ]
     },
@@ -102,7 +102,7 @@
         "message": "over Shrivel"
     },
 
-    "repChannel": "967282160815984650",
+    "repChannel": "Channel ID",
 
     "storeItems": [
         {
