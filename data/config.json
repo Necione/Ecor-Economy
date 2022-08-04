@@ -1,45 +1,137 @@
 {
-    "token": "BOT TOKEN",
-    "prefix": "+",
+    "token": "Redacted",
+    "prefix": "?",
 
-    "adminRole": "ROLE ID",
-    "adminRole1": "ROLE ID",
+    "adminRole": "967284888090849300",
+    "adminRole1": "967285080005435402",
     "images": [
         {
-            "word": "example",
-            "image": "https://i.imgur.com/GYeoGXL.jpeg"
+            "word": "Beware the rain, beware the snow. Beware the man, you think you know.",
+            "image": "https://file.coffee/u/_3f8zC6CHT3vK-d7sq0WA.png"
         },
         {
-            "word": "example",
-            "image": "https://i.imgur.com/GYeoGXL.jpeg"
+            "word": "Everyone is a moon, and has a dark side which he never shows to anybody.",
+            "image": "https://file.coffee/u/p2wb4nSSQKCkGuLPpCUPO.png"
         },
         {
-            "word": "example",
-            "image": "https://i.imgur.com/GYeoGXL.jpeg"
+            "word": "As the sun fades to darkness, the stage is set for the dawning of a new day.",
+            "image": "https://file.coffee/u/szRO4aqOD5227Oi9mtRdN.png"
         },
         {
-            "word": "example",
-            "image": "https://i.imgur.com/GYeoGXL.jpeg"
+            "word": "How many chucks could a woodchuck chuck if a woodchuck could chuck wood?",
+            "image": "https://file.coffee/u/u7PCDsPXLS_9OgnffMf5W.png"
         },
         {
-            "word": "example",
-            "image": "https://i.imgur.com/GYeoGXL.jpeg"
+            "word": "Listen, if I have no clue what I am doing, neither will the enemy.",
+            "image": "https://file.coffee/u/dBiSZkbu95-8MQ3pSGKxM.png"
+        },
+        {
+            "word": "Honestly, humans are nothing more than a product of society.",
+            "image": "https://file.coffee/u/7Yyq0OTh41KfpBXczWAqo.png"
+        },
+        {
+            "word": "Everything is a lot simpler than it seems. Stop overthinking, idiot.",
+            "image": "https://file.coffee/u/wqTT0jFRi8ZLTR9IspNWb.png"
+        }
+    ],
+    "images2": [
+        {
+            "word2": "Mount Everest",
+            "image2": "https://file.coffee/u/ROArHuEO5xscNVLK0dk5m.webp"
+        },
+        {
+            "word2": "Leaning Tower of Pisa",
+            "image2": "https://file.coffee/u/_eCBFggrVqaj3BaW6ZWxy.jpg"
+        },
+        {
+            "word2": "Lake Louise",
+            "image2": "https://file.coffee/u/Jr6M4XiU9ihZ-ZLx1LUEv.jpg"
+        },
+        {
+            "word2": "Keukenhof",
+            "image2": "https://file.coffee/u/QZ_289svHiNTVit54UaRZ.jpg"
+        },
+        {
+            "word2": "Le Louvre",
+            "image2": "https://file.coffee/u/2OgClXd8CeAXrysGFevi7.jpg"
+        },
+        {
+            "word2": "Statue of Liberty",
+            "image2": "https://file.coffee/u/5aQTpg573WDUMZSNqwkYw.webp"
         }
     ],
 
     "economy": {
-        "channel": "CHANNEL ID",
-        "minimumMessagesIn60Seconds": 2,
-        "minimumCoins": 10,
-        "maxiumumCoins": 20,
-        "boostRole": "ROLE ID",
-        "boostAmount": 5
+        "channel": "967282730838675456",
+        "minimumMessagesIn60Seconds": 3,
+        "minimumCoins": 5,
+        "maxiumumCoins": 15,
+        "boostRole": "964753203361112115",
+        "boostAmount": 3
+    },
+
+    "rroles": {
+        "title": "Server Ping Roles",
+        "description": "By using the dropdown provided below, you can check the roles that you would like to be added to you. To remove a role, simply click on it again.",
+        "color": "ORANGE",
+        "roleFill": "Click to Select Your Roles",
+        "roles": [
+            {
+                "text": "Giveaways",
+                "description": "You will be pinged for all giveaways in the giveaway channel.",
+                "emoji": "🎁",
+                "roleID": "975493987265814628"
+            },
+            {
+                "text": "Events",
+                "description": "You will be pinged for all server events and tournaments.",
+                "emoji": "⚔️",
+                "roleID": "973423242649931786"
+            },
+            {
+                "text": "Announcements",
+                "description": "You will be pinged for all server related announcements and updates.",
+                "emoji": "📢",
+                "roleID": "973423149683187792"
+            }
+        ]
     },
 
     "status": {
         "type": "WATCHING",
-        "message": "over Riven"
+        "message": "over Shrivel"
     },
 
-    "repChannel": "CHANNEL ID"
+    "repChannel": "967282160815984650",
+
+    "storeItems": [
+        {
+            "name": "Wheat Seeds",
+            "plantName": "Wheat",
+            "price": 250,
+            "emoji": "🌼",
+            "wateringRequired": 3
+        },
+        {
+            "name": "Potato Seeds",
+            "plantName": "Potato",
+            "price": 500,
+            "emoji": "🥔",
+            "wateringRequired": 5
+        },
+        {
+            "name": "Carrot Seeds",
+            "plantName": "Carrot",
+            "price": 1000,
+            "emoji": "🥕",
+            "wateringRequired": 6
+        },
+        {
+            "name": "Pepper Seeds",
+            "plantName": "Pepper",
+            "price": 1500,
+            "emoji": "🌶️",
+            "wateringRequired": 8
+        }
+    ]
 }
