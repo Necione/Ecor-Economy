@@ -12,9 +12,16 @@ You can currently see the bot in action in the [Shrivel Discord](https://discord
 - Daily quests system using CronJob
 
 ## Usage 🛠️
+Pre-Installation: 
+1. Create a Discord Bot @ https://discord.com/developers/applications
+2. Check all "Privileged Gateway Intents" (found under the Bot tab)
+3. Copy the bot token and invite bot to server using https://scarsz.me/authorize
+
+Bot Installation:
 1. Download all files and extract ZIP into new folder.
 2. Modify config.json in data to your liking (ensure everything is filled)
-3. Install a process manager such as PM2
+(To grab channel and role IDs, make sure to enable developer mode!)
+4. Install a process manager such as PM2
 ```
 npm install pm2 -g
 ```
