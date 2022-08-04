@@ -2,7 +2,7 @@
 const fs = require('fs');
 const rn = require('random-number');
 const CronJob = require('cron').CronJob;
-const { Client, Intents, MessageEmbed } = require('discord.js');
+const { Client, Intents, MessageEmbed, MessageActionRow, MessageSelectMenu } = require('discord.js');
 const client = new Client({ intents: [
     Intents.FLAGS.GUILDS,
     Intents.FLAGS.GUILD_MEMBERS,
@@ -13,12 +13,11 @@ const client = new Client({ intents: [
 
 // Config
 const cronTimezone = 'America/Los_Angeles';
-const { token, economy, prefix, adminRole, images, adminRole1, status, repChannel, storeItems } = require('./data/config.json');
+const { token, economy, prefix, adminRole, images, images2, adminRole1, status, repChannel, storeItems } = require('./data/config.json');
+const config = require('./data/config.json')
 let chatters = []; // holds the IDs of people sending messages
 let rewarded = []; // hold IDs of people who have recieved coins for that minute
 let lastEvent = 999; // unix date of when the last event took place
-let fights = []; // holds the IDs of users who have fought in the last 10mins
-let repCommandCooldown = []; // holds the IDs of users who have used the rep command in the last hour
 
 // Functions
 function get(id) {
@@ -72,26 +71,80 @@ client.on("ready", () => {
     client.user.setPresence({ activities: [{ name: status.message, type: status.type }], status: 'idle' });
 
     // reset rewarded array every minute
-    setInterval(() => {
+    let job = new CronJob('1 * * * * *', function() {
         rewarded = [];
-    }, 60000);
+    }, null, true, cronTimezone);
+    job.start();
 
-    // reset quests at midnight + logs
+    // reset quests at midnight
     let job1 = new CronJob('1 0 0 * * *', function() {
         files = fs.readdirSync(`./data/quests/`);
-        for(i = 0; i < files.length; i++) {
-            fs.unlinkSync(`./data/quests/${files[i]}`);
-        }
-
-        fs.writeFileSync(`./data/log.json`, JSON.stringify([], null, 4));
+        files.forEach(file => fs.unlinkSync(`./data/quests/${file}`));
     }, null, true, cronTimezone);
     job1.start();
-
-    // remove expired fight cooldowns
-    setInterval(() => {
-        fights = fights.filter(t => t != null && t.time > Date.now());
-    }, (1000));
 });
+client.on('interactionCreate', async interaction => {
+
+    if(interaction.isCommand()) return;
+
+    const addedRoles = []
+    const removedRoles = []
+
+    interaction.values.forEach(value => {
+
+        let obj = null;
+
+        config.rroles.roles.forEach(role => {
+            if(role.text === value){
+                obj = role
+            }
+        })
+
+        if(obj !== null){
+
+            const rRole = interaction.guild.roles.cache.find(r => r.id === obj.roleID)
+
+            if(rRole){
+
+                if(!interaction.member._roles.includes(rRole.id)){
+                    interaction.member.roles.add(rRole.id)
+                    addedRoles.push(rRole)
+                }
+
+            }
+
+        }
+
+    })
+
+    config.rroles.roles.forEach(role => {
+        if(!interaction.values.includes(role.text)){
+            const rRole = interaction.guild.roles.cache.find(r => r.id === role.roleID)
+
+            if(rRole){
+
+                if(interaction.member._roles.includes(rRole.id)){
+                    interaction.member.roles.remove(rRole.id)
+                    removedRoles.push(rRole)
+                }
+
+            }
+        }
+    })
+
+    let reply = []
+
+    if(addedRoles.length){
+        reply.push(`**Added Roles:** ${addedRoles.join(' ')}`)
+    }
+    if(removedRoles.length){
+        reply.push(`**Removed Roles:** ${removedRoles.join(' ')}`)
+    }
+
+    interaction.reply({content: `${reply.join('\n') || ' '}`, ephemeral: true})
+
+
+})
 client.on("messageCreate", async message => {
 
     // filter
@@ -115,7 +168,7 @@ client.on("messageCreate", async message => {
                 xx.messages.claimed = true;
     
                 yy = get(message.author.id);
-                if(!isLocked(message.author.id)) yy.balance += 250;
+                if(!isLocked(message.author.id)) yy.balance += 750;
                 if(!yy.staffCredits) yy.staffCredits = 0;
                 yy.staffCredits += 1;
                 set(message.author.id, yy);
@@ -123,7 +176,9 @@ client.on("messageCreate", async message => {
                 xx.messages.claimed1 = true;
     
                 yy = get(message.author.id);
-                if(!isLocked(message.author.id)) yy.balance += 100;
+                if(!isLocked(message.author.id)) yy.balance += 250;
+                if(!yy.staffCredits) yy.staffCredits = 0;
+                yy.staffCredits += 1;
                 set(message.author.id, yy);
             }
     
@@ -188,13 +243,13 @@ client.on("messageCreate", async message => {
     }
 
     // events
-    if(message.channel.id == economy.channel && (lastEvent < Date.now() - (1000*60*15)) && chatters.filter(t => t != null).length >= 5 && !message.content.startsWith(prefix)) {
+    if(message.channel.id == economy.channel && (lastEvent < Date.now() - (1000*60*30)) && chatters.filter(t => t != null).length >= 5) {
 
         // stop further
         lastEvent = Date.now();
 
         // decide game
-        xxx = rn({ min: 1, max: 4, integer: true });
+        xxx = rn({ min: 1, max: 4, intesger: true });
 
         // hot potato
         if(xxx == 1) { 
@@ -229,7 +284,7 @@ client.on("messageCreate", async message => {
                     message.channel.send({embeds:[embed]});
     
                     dz = get(m.author.id);
-                    if(!isLocked(message.author.id)) dz.balance -= 50;
+                    dz.balance -= 50;
                     set(m.author.id, dz);
                 }
             });
@@ -241,7 +296,7 @@ client.on("messageCreate", async message => {
                 message.channel.send({embeds:[embed]});
     
                 dz = get(holder);
-                if(!isLocked(message.author.id)) dz.balance -= 50;
+                dz.balance -= 50;
                 set(holder, dz);
             });
         }
@@ -257,10 +312,10 @@ client.on("messageCreate", async message => {
 
             embed = new MessageEmbed()
                 .setColor('ORANGE')
-                .setTitle(`⭐ Random Event | Name the Image`)
+                .setTitle(`⭐ Random Event | The Typing Test`)
                 .setImage(word.image)
-                .setDescription(`Reply correctly to win 50 coins!`)
-                .setFooter({text:`First to reply wins!`})
+                .setDescription(`Type the sentence quickly to earn 50 coins!`)
+                .setFooter({text:`First to finish typing wins!`})
             message.channel.send({embeds:[embed]});
 
             const filter = m => m.content.toLowerCase() == word.word.toLowerCase();
@@ -274,7 +329,7 @@ client.on("messageCreate", async message => {
                 message.channel.send({embeds:[embed]});
 
                 dz = get(m.author.id);
-                if(!isLocked(message.author.id)) dz.balance += 50;
+                dz.balance += 50;
                 set(m.author.id, dz);
             });
         }
@@ -293,17 +348,12 @@ client.on("messageCreate", async message => {
             participated = [];
             fail = false;
 
-            const filter = m => !isNaN(m.content) && !m.author.bot;
+            const filter = m => !isNaN(m.content) && !m.author.bot && m.content != '' && !m.attachments.first();
             const collector = message.channel.createMessageCollector({ filter, });
             collector.on('collect', m => {
 
                 if(last == m.author.id || parseInt(m.content) == no || parseInt(m.content) != (no + 1)) {
                     fail = true;
-
-                    dz = get(m.author.id);
-                    dz.balance -= 100;
-                    set(m.author.id, dz);
-
                     collector.stop();
                 } 
 
@@ -326,7 +376,7 @@ client.on("messageCreate", async message => {
 
                     for(i in participated) {
                         dz = get(participated[i]);
-                        if(!isLocked(participated[i])) dz.balance += 50;
+                        dz.balance += 50;
                         set(participated[i], dz);
                     }
 
@@ -340,104 +390,36 @@ client.on("messageCreate", async message => {
             });
         }
 
-        // dilemma
+        // name the location
         if(xxx == 4) {
 
-            one = message.author.id;
-            two = null;
-            three = null;
-
-            while(two == null || one == two) {
-                chatters = chatters.filter(t => t != null);
-                two = chatters[rn({
-                    min: 0,
-                    max: chatters.length - 1,
-                    integer: true
-                })];
-            }
-            while(three == null || one == three || two == three) {
-                chatters = chatters.filter(t => t != null);
-                three = chatters[rn({
-                    min: 0,
-                    max: chatters.length - 1,
-                    integer: true
-                })];
-            }
+            word2 = images2[rn({
+                min: 0,
+                max: images2.length -1,
+                integer: true
+            })];
 
             embed = new MessageEmbed()
                 .setColor('ORANGE')
-                .setTitle(`⭐ Random Event | Dielemma`)
-                .setDescription(`<@${one}> must select someone below to lose 100 coins!\n\n1. <@${one}> \n2. <@${two}> \n3. <@${three}>`)
-                .setFooter({text:`30 seconds to reply, or all 3 lose 100 coins.\nReply with 1, 2 or 3`})
+                .setTitle(`⭐ Random Event | Name the Location`)
+                .setImage(word2.image2)
+                .setDescription(`Type the name of this image to win 50 coins`)
+                .setFooter({text:`The fastest reply wins`})
             message.channel.send({embeds:[embed]});
 
-            const filter = m => (m.content == '1' || m.content == '2' || m.content == '3') && m.author.id == message.author.id;
-            const collector = message.channel.createMessageCollector({ filter, max: 1, time: 30000});
+            const filter = m => m.content.toLowerCase() == word2.word2.toLowerCase();
+            const collector = message.channel.createMessageCollector({ filter, max: 1 });
             collector.on('collect', m => {
+    
+                embed = new MessageEmbed()
+                    .setColor('ORANGE')
+                    .setTitle(`Game over!`)
+                    .setDescription(`<@${m.author.id}> answered first - they won 50 coins!`)
+                message.channel.send({embeds:[embed]});
 
-                switch(m.content) {
-                    case('1'): 
-
-                        dx = get(one);
-                        if(!isLocked(one)) dx.balance -= 100;
-                        set(one, dx);
-
-                        embed = new MessageEmbed()
-                            .setColor('ORANGE')
-                            .setTitle(`Game over!`)
-                            .setDescription(`<@${one}> lost 100 coins.`)
-                        message.channel.send({embeds:[embed]});
-                        break;
-                    
-                    case('2'): 
-                    
-                        dx = get(two);
-                        if(!isLocked(two)) dx.balance -= 100;
-                        set(two, dx);
-
-                        embed = new MessageEmbed()
-                            .setColor('ORANGE')
-                            .setTitle(`Game over!`)
-                            .setDescription(`<@${two}> lost 100 coins.`)
-                        message.channel.send({embeds:[embed]});
-                        break;
-                        
-                    case('3'): 
-                    
-                        dx = get(three);
-                        if(!isLocked(three)) dx.balance -= 100;
-                        set(three, dx);
-
-                        embed = new MessageEmbed()
-                            .setColor('ORANGE')
-                            .setTitle(`Game over!`)
-                            .setDescription(`<@${three}> lost 100 coins.`)
-                        message.channel.send({embeds:[embed]});
-                        break;
-                }
-            });
-            collector.on('end', collected => {
-                if(collected.size == 0) {
-
-                    dx = get(one);
-                    if(!isLocked(one)) dx.balance -= 100;
-                    set(one, dx);
-
-                    dx = get(two);
-                    if(!isLocked(two)) dx.balance -= 100;
-                    set(two, dx);
-
-                    dx = get(three);
-                    if(!isLocked(three)) dx.balance -= 100;
-                    set(three, dx);
-
-                    embed = new MessageEmbed()
-                        .setColor('ORANGE')
-                        .setTitle(`Game over!`)
-                        .setDescription(`All 3 users lost 100 coins.`)
-                    message.channel.send({embeds:[embed]});
-
-                }
+                dz = get(m.author.id);
+                dz.balance += 50;
+                set(m.author.id, dz);
             });
         }
     }
@@ -485,12 +467,12 @@ client.on("messageCreate", async message => {
 
         // update JSON
         da = get(message.mentions.users.first().id);
-        if(!isLocked(message.author.id)) da.balance = 0;
+        da.balance = 0;
         set(message.mentions.users.first().id, da);
 
         // reply
         embed = new MessageEmbed()
-            .setColor('GREEN')
+            .setColor('33FF4C')
             .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
             .setDescription(`Success. User balance has been reset.`)
         message.channel.send({embeds:[embed]});
@@ -522,7 +504,7 @@ client.on("messageCreate", async message => {
 
         // reply
         embed = new MessageEmbed()
-            .setColor('GREEN')
+            .setColor('33FF4C')
             .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
             .setDescription(`Success. Coins have been removed.`)
         message.channel.send({embeds:[embed]});
@@ -554,7 +536,7 @@ client.on("messageCreate", async message => {
 
         // reply
         embed = new MessageEmbed()
-            .setColor('GREEN')
+            .setColor('33FF4C')
             .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
             .setDescription(`Success. Coins have been added.`)
         message.channel.send({embeds:[embed]});
@@ -587,7 +569,7 @@ client.on("messageCreate", async message => {
 
         // reply
         embed = new MessageEmbed()
-            .setColor('GREEN')
+            .setColor('33FF4C')
             .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
             .setDescription(`Success. Reputation has been updated.`)
         message.channel.send({embeds:[embed]});
@@ -620,7 +602,7 @@ client.on("messageCreate", async message => {
 
         // reply
         embed = new MessageEmbed()
-            .setColor('GREEN')
+            .setColor('33FF4C')
             .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
             .setDescription(`Success. Reputation has been updated.`)
         message.channel.send({embeds:[embed]});
@@ -653,7 +635,7 @@ client.on("messageCreate", async message => {
 
         // reply
         embed = new MessageEmbed()
-            .setColor('GREEN')
+            .setColor('33FF4C')
             .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
             .setDescription(`Strike has been added.`)
         message.channel.send({embeds:[embed]});
@@ -692,7 +674,7 @@ client.on("messageCreate", async message => {
             d = d.filter(t => t != message.mentions.users.first().id);
         } else {
             embed = new MessageEmbed()
-                .setColor('GREEN')
+                .setColor('33FF4C')
                 .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
                 .setDescription(`Account has been locked.`)
             message.channel.send({embeds:[embed]});
@@ -730,254 +712,32 @@ client.on("messageCreate", async message => {
 
         // reply
         embed = new MessageEmbed()
-            .setColor('GREEN')
+            .setColor('33FF4C')
             .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
             .setDescription(`Success. Special tokens have been given.`)
         message.channel.send({embeds:[embed]});
     }
-    if(md[0].toLowerCase() == `${prefix}log`) {
-        
-        // admin?
-        if(!message.member.roles.cache.has(adminRole) && !message.member.roles.cache.has(adminRole1)) {
-            embed = new MessageEmbed()
-                .setColor('DARK_RED')
-                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setDescription(`You must be a member of staff to use this command.`)
-            return message.channel.send({embeds:[embed]});
-        }
-
-        // correct usage?
-        if(!md[1]) {
-            embed = new MessageEmbed()
-                .setColor('DARK_RED')
-                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setDescription(`Incorrect command usage. E.g. ${prefix}log <message>`)
-            return message.channel.send({embeds:[embed]});
-        }
-
-        // record in JSON
-        data = JSON.parse(fs.readFileSync(`./data/log.json`));
-        data.push({message:`${md.slice(1).join(" ")}`, tag: message.author.tag, id: message.author.id});
-        fs.writeFileSync(`./data/log.json`, JSON.stringify(data, null, 4));
-
-        // reply
-        embed = new MessageEmbed()
-            .setColor('GREEN')
-            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-            .setDescription(`Log has been updated.`)
-        message.channel.send({embeds:[embed]});
-    }
-    if(msg == `${prefix}today`) {
-        
-        // admin?
-        if(!message.member.roles.cache.has(adminRole)) {
-            embed = new MessageEmbed()
-                .setColor('DARK_RED')
-                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setDescription(`You must be a member of staff to use this command.`)
-            return message.channel.send({embeds:[embed]});
-        }
-
-        // load data
-        logs = JSON.parse(fs.readFileSync(`./data/log.json`)).map(t => `<@${t.id}> **${t.message}**`);
-
-        // reply
-        embed = new MessageEmbed()
-            .setColor('DARK_BLUE')
-            .setDescription(logs.length == 0 ? `No logs recorded for today.` : logs.join(`\n`))
-            .setFooter({text:`Clears at midnight daily`})
-        message.channel.send({embeds:[embed]});
-    } 
 
     // user commands
-    if(md[0].toLowerCase() == `${prefix}fight` && !msg.includes(`fightaccept`) && !msg.includes('fightdecline')) {
-
-        // locked?
-        if(isLocked(message.author.id)) {
-            embed = new MessageEmbed()
-                .setColor('DARK_RED')
-                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setDescription(`Your wallet is locked. You cannot use this command.`)
-            return message.channel.send({embeds:[embed]});
-        }
+   	if(msg.startsWith(`${prefix}pay`)) {
 
         // correct usage?
-        if(!message.mentions.users.first() || message.mentions.users.first() == message.author.id|| isNaN(md[2]) || md[2] < 10 || md[2] > 250) {
+        if(!message.mentions.users.first() || message.mentions.users.first().id == message.author.id || isNaN(md[2]) || md[2] < 0 || md[2] == '') {
             embed = new MessageEmbed()
-                .setColor('DARK_RED')
+                .setColor('FFBB33')
                 .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setDescription(`Incorrect command usage. ${prefix}fight @user bet`)
-                .setFooter({ text: `Minimum bet 10, maximum bet 250.` })
-            return message.channel.send({embeds:[embed]});
-        }
-
-        // cooldown
-        if(fights.filter(t => t.id == message.author.id)[0]) {
-            embed = new MessageEmbed()
-                .setColor('DARK_RED')
-                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setDescription(`You have been in a recent fight and are still recovering, please wait another ${Math.floor((fights.filter(t => t.id == message.author.id)[0].time - Date.now()) / 60000)} minutes before fighting again`)
+                .setDescription(`Incorrect command usage. E.g. ${prefix}pay <@user> <amount>`)
+                .setThumbnail('https://file.coffee/u/C_j6DpCgTR34mOSpaqpd5.png')
+                .setFooter({text:`Please note, you CANNOT pay yourself.`})
             return message.channel.send({embeds:[embed]});
         }
 
         // afford?
         if(md[2] > get(message.author.id).balance) {
             embed = new MessageEmbed()
-                .setColor('DARK_RED')
+                .setColor('FF3333')
                 .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setDescription(`You cannot afford this transaction.`)
-            return message.channel.send({embeds:[embed]});
-        }
-
-        // add to fights array
-        fights.push({ id: message.author.id, time: (Date.now()+(1000*60*10)) });
-        fights.push({ id: message.mentions.users.first().id, time: (Date.now()+(1000*60*10)) });
-
-        // reply
-        embed = new MessageEmbed()
-            .setColor('DARK_BLUE')
-            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-            .setDescription(`**Accept the fight?** \n\n${prefix}fightaccept \n${prefix}fightdecline`)
-            .setFooter({ text: `You have 60 seconds to respond.` })
-        message.channel.send({embeds:[embed]});
-
-        // await response
-        const filter = m => [`${prefix}fightaccept`, `${prefix}fightdecline`].includes(m.content.toLowerCase()) && m.author.id == message.mentions.users.first().id;
-        const collector = message.channel.createMessageCollector({ filter, time: 60000, max: 1 });
-
-        // valid response
-        collector.on('collect', m => {
-            switch(m.content.toLowerCase()) {
-
-                case(`${prefix}fightdecline`):
-
-                    // reply
-                    embed = new MessageEmbed()
-                        .setColor('ORANGE')
-                        .setDescription("Fight declined.")
-                    message.channel.send({embeds:[embed], content: `<@${message.author.id}> <@${message.mentions.users.first().id}>`});
-
-                    // remove cooldown
-                    fights = fights.filter(t => t.id != message.author.id && t.id != message.mentions.users.first().id);
-                    break;
-
-                case(`${prefix}fightaccept`):
-
-                    // afford?
-                    if(md[2] > get(message.mentions.users.first().id).balance) {
-                        embed = new MessageEmbed()
-                            .setColor('DARK_RED')
-                            .setAuthor({name:m.author.tag, iconURL:m.author.displayAvatarURL()})
-                            .setDescription(`You cannot afford this transaction.`)
-                        return message.channel.send({embeds:[embed]});
-                    }
-
-                    // pick winner
-                    winner = rn({min: 1, max: 2, integer: true}) == 1 ? message.author.id: message.mentions.users.first().id;
-                    loser = winner == message.author.id ? message.mentions.users.first().id : message.author.id;
-
-                    // reply
-                    embed = new MessageEmbed()
-                        .setColor('GREEN')
-                        .setDescription(`🏆 <@${winner}> wins!`)
-                    message.channel.send({embeds:[embed]});
-
-                    // update balance
-                    dz = get(winner);
-                    if(!isLocked(winner)) dz.balance += parseInt(md[2]);
-                    fs.writeFileSync(`./data/users/${winner}.json`, JSON.stringify(dz, null, 4));
-
-                    dzzz = get(loser);
-                    if(!isLocked(loser)) dzzz.balance -= parseInt(md[2]);
-                    fs.writeFileSync(`./data/users/${loser}.json`, JSON.stringify(dzzz, null, 4));
-
-                    break;
-            }
-        });
-        collector.on('end', collected => {
-            if(collected.size == 0) {
-                
-                // reply
-                embed = new MessageEmbed()
-                    .setColor('ORANGE')
-                    .setAuthor({name:message.mentions.users.first().tag, iconURL: message.mentions.users.first().displayAvatarURL()})
-                    .setDescription("No response recieved. Fight cancelled.")
-                message.channel.send({embeds:[embed], content:`<@${message.author.id}>`});
-
-                // remove cooldown
-                fights = fights.filter(t => t.id != message.author.id && t.id != message.mentions.users.first().id);                
-            }
-        });
-    }
-    if(md[0].toLowerCase() == `${prefix}rep` || md[0].toLowerCase() == `${prefix}r`) {
-
-        // correct usage?
-        if(!message.mentions.users.first() || message.mentions.users.map(t => t.id).includes(message.author.id) || !["+", "-"].includes(md[2]) || !md[3]) {
-            embed = new MessageEmbed()
-                .setColor('DARK_RED')
-                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setDescription(`Incorrect command usage. E.g. ${prefix}rep <@user> <+/-> <reason>`)
-                .setFooter({text:`*Please note, you CANNOT rep yourself!*`})
-            return message.channel.send({embeds:[embed]});
-        }
-
-        // cooldown
-        if(repCommandCooldown.includes(message.author.id)) {
-            embed = new MessageEmbed()
-                .setColor('DARK_RED')
-                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setDescription(`You are on cooldown. You can only use this command once per hour.`)
-            return message.channel.send({embeds:[embed]});
-        }
-        repCommandCooldown.push(message.author.id);
-        setTimeout(() => {
-            delete repCommandCooldown[repCommandCooldown.indexOf(message.author.id)];
-            repCommandCooldown = repCommandCooldown.filter(t => t != null);
-        }, (1000*60*60));
-
-        // reply
-        embed = new MessageEmbed()
-            .setColor('ORANGE')
-            .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-            .setDescription(`Reputation has been recorded!`)
-        message.channel.send({embeds:[embed]});
-
-        // record in channel
-        embed = new MessageEmbed()
-            .setColor(md[2] == "-" ? "DARK_RED" : "GREEN")
-            .setAuthor({ name: message.mentions.users.first().tag, iconURL: message.mentions.users.first().displayAvatarURL() })
-            .setDescription("`"+md.slice(3).join(" ")+"`")
-            .setFooter({ text: `Rep by: ${message.author.tag}` })
-        c = await message.guild.channels.fetch(repChannel);
-        c.send({embeds:[embed]});
-    }
-    if(md[0].toLowerCase() == `${prefix}pay`) {
-
-        // locked?
-        if(isLocked(message.author.id)) {
-            embed = new MessageEmbed()
-                .setColor('DARK_RED')
-                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setDescription(`Your wallet is locked. You cannot use this command.`)
-            return message.channel.send({embeds:[embed]});
-        }
-
-        // correct usage?
-        if(!message.mentions.users.first() || message.mentions.users.map(t => t.id).includes(message.author.id) || isNaN(md[1]) || md[1] < 0 || md[1] == '') {
-            embed = new MessageEmbed()
-                .setColor('DARK_RED')
-				.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
-                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setDescription(`Incorrect command usage. E.g. ${prefix}pay <amount> <@user> <@user> <@user>`)
-                .setFooter({text:`*Please note, you CANNOT pay yourself!*`})
-            return message.channel.send({embeds:[embed]});
-        }
-
-        // afford?
-        if((md[1] * message.mentions.users.size) > get(message.author.id).balance) {
-            embed = new MessageEmbed()
-                .setColor('DARK_RED')
-                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setThumbnail('https://file.coffee/u/CWanwcFihzRKWMyxp8g5p.png')
                 .setDescription(`You cannot afford this transaction.`)
             return message.channel.send({embeds:[embed]});
         }
@@ -991,9 +751,10 @@ client.on("messageCreate", async message => {
 
         // reply
         embed = new MessageEmbed()
-            .setColor('ORANGE')
+            .setColor('B65FFF')
             .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-            .setDescription("Transferring `"+parseInt(md[1]) * message.mentions.users.size+" coins`\n"+`<@${message.author.id}> → ${message.mentions.users.map(t => `<@${t.id}>`).join("")}\nPlease type **${code}** to confirm this transaction`)
+            .setThumbnail('https://file.coffee/u/QgGkRW34pBz129RLRTus-.png')
+            .setDescription("Transferring `"+parseInt(md[2])+" coins`\n"+`<@${message.author.id}> → <@${message.mentions.users.first().id}>\nPlease type **${code}** to confirm this transaction`)
         message.channel.send({embeds:[embed]});
 
         // await response
@@ -1005,20 +766,19 @@ client.on("messageCreate", async message => {
 
             // update JSON
             dy = get(message.author.id);
-            if(!isLocked(message.author.id)) dy.balance -= parseInt(md[1]);
+            if(!isLocked(message.author.id)) dy.balance -= parseInt(md[2]);
             set(message.author.id, dy);
 
-            message.mentions.users.forEach(t => {
-                du = get(t.id);
-                if(!isLocked(t.id)) du.balance += parseInt(md[1]);
-                set(t.id, du);
-            });
+            du = get(message.mentions.users.first().id);
+            if(!isLocked(message.mentions.users.first().id)) du.balance += parseInt(md[2]);
+            set(message.mentions.users.first().id, du);
 
             // reply
             embed = new MessageEmbed()
-                .setColor('ORANGE')
+                .setColor('33FF4C')
                 .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-                .setDescription("Transaction completed! `"+parseInt(md[1]) * message.mentions.users.size+" coins`\n"+`<@${message.author.id}> → ${message.mentions.users.map(t => `<@${t.id}>`).join("")}`)
+                .setThumbnail('https://file.coffee/u/x6Pfjxf-pI3PjCMTAIL3r.png')
+                .setDescription("Transaction completed! `"+parseInt(md[2])+" coins`\n"+`<@${message.author.id}> → <@${message.mentions.users.first().id}>`)
             message.channel.send({embeds:[embed]});
         });
 
@@ -1026,8 +786,9 @@ client.on("messageCreate", async message => {
         collector.on('end', collected => {
             if(collected.size == 0) {
                 embed = new MessageEmbed()
-                    .setColor('ORANGE')
+                    .setColor('FF3333')
                     .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                    .setThumbnail('https://file.coffee/u/CWanwcFihzRKWMyxp8g5p.png')
                     .setDescription("No code recieved. Transaction has been cancelled.")
                 message.channel.send({embeds:[embed]});
             }
@@ -1064,7 +825,7 @@ client.on("messageCreate", async message => {
         pages = [];
         string = [];
         for(let i in raw) {
-            temp = `**#${raw[i].position}** ${raw[i].username} - ${raw[i].count} Coins`;
+            temp = `${raw[i].position}) ${raw[i].username} - ${raw[i].count} Coins`;
             if(raw[i].position == 1) {
                 temp = `🥇 ${raw[i].username} - ${raw[i].count} Coins`
             } else if(raw[i].position == 2) {
@@ -1085,72 +846,14 @@ client.on("messageCreate", async message => {
         if(pages.length == 0) {
             pages.push(string.join(` \n`));
         }
+        console.log(pages);
 
         embed = new MessageEmbed()
-            .setColor('ORANGE') 
-            .setAuthor({ name: `Leaderboard - Top 10 Richest Users`, iconURL: message.guild.iconURL() })
+            .setColor('B65FFF') 
+            .setAuthor({ name: `Leaderboard - Top 10`, iconURL: message.guild.iconURL() })
             .setDescription(pages[0])
         message.channel.send({embeds: [embed]});
-    }  
-    if(msg == `${prefix}rtop`) {
-        
-        // Sort raw data
-        files = fs.readdirSync(`./data/users/`).filter(t => t.endsWith('.json'));
-        unsorted = [];
-        for(let i in files) {
-            file = JSON.parse(fs.readFileSync(`./data/users/${files[i]}`));
-            unsorted.push({
-                id: files[i].split(".")[0],
-                count: file.staffCredits == null ? 0 : file.staffCredits,
-            });
-        };
-        leaderboard = unsorted.sort((a, b) => (a.count < b.count) ? 1 : -1);
-    
-        // Further sort
-        raw = [];
-        counter = 1
-        for(let i in leaderboard) {
-            raw.push({
-                id: leaderboard[i].id,
-                username: `<@${leaderboard[i].id}>`,
-                position: counter,
-                count: leaderboard[i].count,
-            });
-            counter = counter + 1;
-        }   
-
-        // Format
-        pages = [];
-        string = [];
-        for(let i in raw) {
-            temp = `**#${raw[i].position}** ${raw[i].username} - ${raw[i].count}`;
-            if(raw[i].position == 1) {
-                temp = `🥇 ${raw[i].username} - ${raw[i].count}`
-            } else if(raw[i].position == 2) {
-                temp = `🥈 ${raw[i].username} - ${raw[i].count}`
-            } else if(raw[i].position == 3) {
-                temp = `🥉 ${raw[i].username} - ${raw[i].count}`
-            }
-            if(string.length < 10) {
-                string.push(temp);
-            } else {
-                pages.push(string.join(` \n`));
-                string = [];
-                string.push(temp);
-            }
-        }
-
-        // Less than 10 users?
-        if(pages.length == 0) {
-            pages.push(string.join(` \n`));
-        }
-
-        embed = new MessageEmbed()
-            .setColor('ORANGE') 
-            .setAuthor({ name: `Leaderboard - Top 10 Users by Reputation`, iconURL: message.guild.iconURL() })
-            .setDescription(pages[0])
-        message.channel.send({embeds: [embed]});
-    }  
+    }
     if(md[0].toLowerCase() == `${prefix}w` || md[0].toLowerCase() == `${prefix}wallet`) {
 
         // collect data
@@ -1159,23 +862,22 @@ client.on("messageCreate", async message => {
         dk = get(user.id);
 
         if(!dk.staffCredits) dk.staffCredits = 0;
-        type = dk.staffCredits >= 75 
-        ? { colour: "BLUE", name: "Platinum Wallet", chance: 20 }
-        : (dk.staffCredits >= 30) 
-        ? { colour: "GOLD", name: "Gold Wallet", chance: 15 }
+        type = dk.staffCredits >= 30 
+        ? { colour: "BLUE", name: "`💷` __Platinum__ Shrivel Wallet", chance: 50 }
+        : (dk.staffCredits >= 20) 
+        ? { colour: "GOLD", name: "`💵` __Gold__ Shrivel Wallet", chance: 25 }
         : (dk.staffCredits >= 10)
-        ? { colour: "WHITE", name: "Iron Wallet", chance: 10 }
-        : { colour: "#CD7F32", name: "Bronze Wallet", chance: 0 }
-        string = "**Current Balance:** `"+dk.balance+" Coins` *(#"+leaderboard[0]+")*\n**Messages Sent:** `"+dk.messagesSent+"` *(#"+leaderboard[1]+")*\n**Special Tokens:** `"+dk.special+"` *(#"+leaderboard[2]+")* \n\n**User Rating:** `"+(dk.staffCredits != null ? (dk.staffCredits > 0 ? `+${dk.staffCredits}` : dk.staffCredits) : 0)+"` "+((leaderboard[3] != null) ? "*(#"+(leaderboard[3] != null ? leaderboard[3] : "")+")*" : "")+" \n**Total Strikes:** `"+(dk.strikes != null ? dk.strikes : 0)+"`";
+        ? { colour: "WHITE", name: "`💶` __Iron__ Shrivel Wallet", chance: 10 }
+        : { colour: "#CD7F32", name: "`💴` __Bronze__ Shrivel Wallet", chance: 0 }
+        string = "> **Current Balance:** `"+dk.balance+" Coins` *(#"+leaderboard[0]+")*\n> **Messages Sent:** `"+dk.messagesSent+"` *(#"+leaderboard[1]+")*\n> **Special Tokens:** `"+dk.special+"` *(#"+leaderboard[2]+")* \n\n> **User Rating:** `"+(dk.staffCredits != null ? (dk.staffCredits > 0 ? `+${dk.staffCredits}` : dk.staffCredits) : 0)+"` "+((leaderboard[3] != null) ? "*(#"+(leaderboard[3] != null ? leaderboard[3] : "")+")*" : "")+" \n> **Total Strikes:** `"+(dk.strikes != null ? dk.strikes : 0)+"`";
 
-        if(isLocked(user.id)) type = { colour: "DARK_RED", name: "Locked Wallet", chance: 0}
+        if(isLocked(user.id)) type = { colour: "DARK_RED", name: "`🔒` Locked Shrivel Wallet", chance: 0}
 
         // reply
         embed = new MessageEmbed()
             .setColor(type.colour)
             .setTitle(type.name)
-            .setAuthor({name:user.tag, iconURL:user.displayAvatarURL()})
-			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
+			.setThumbnail(user.displayAvatarURL())
             .setDescription(string)
 
         if(type.chance > 0) embed.setFooter({ text: `${type.chance}% chance to earn double coins!` });
@@ -1184,8 +886,8 @@ client.on("messageCreate", async message => {
     }
     if(msg == `${prefix}econinfo`) {
         embed = new MessageEmbed()
-            .setColor('ORANGE')
-			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
+            .setColor('B65FFF')
+			.setThumbnail('https://file.coffee/u/jHfDGnnLgQ7n4xzViF3bE.png')
             .setTitle(`Economy Info`)
             .setDescription("Current earnings: `"+economy.minimumCoins+"-"+economy.maxiumumCoins+" Coins per minute`\nCurrent Bonuses: `N/A`")
         message.channel.send({embeds:[embed]});
@@ -1196,44 +898,31 @@ client.on("messageCreate", async message => {
 
         embed = new MessageEmbed()
             .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
-            .setColor('ORANGE')
-			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
+            .setColor('B65FFF')
+			.setThumbnail('https://file.coffee/u/jHfDGnnLgQ7n4xzViF3bE.png')
             .setTitle(`Your Available Quests`)
-            .setDescription((count >= 1000 ? "~~": "") + "`Send 1000 Messages`"+ (count >= 1000 ? "~~": "") + " ["+count+"/1000]\n+250 Coins, +1 User Rating \n\n"+(count >= 500 ? "~~": "") + "`Send 500 Messages`"+ (count >= 500 ? "~~": "") + " ["+count+"/500]\n+100 Coins")
+            .setDescription((count >= 1000 ? "~~": "") + "`Send 1000 Messages`"+ (count >= 1000 ? "~~": "") + " ["+count+"/1000]\n+750 Coins, +1 User Rating \n\n"+(count >= 500 ? "~~": "") + "`Send 500 Messages`"+ (count >= 500 ? "~~": "") + " ["+count+"/500]\n+250 Coins, +1 User Rating")
         message.channel.send({embeds:[embed]});
     }
     if(msg == `${prefix}inventory`) {
         embed = new MessageEmbed()
-            .setColor('DARK_BLUE')
+            .setColor('5F99FF')
             .setAuthor({ name: `${message.author.username}'s Inventory`, iconURL: message.author.displayAvatarURL() })
             .setDescription(`Inventory is empty.`)
         message.channel.send({embeds:[embed]});
     }
     if(msg == `${prefix}help`) {
         embed = new MessageEmbed()
-            .setColor('ORANGE')
-			.setThumbnail('https://file.coffee/u/F-OHD005k7EetL.gif')
-            .setTitle(`Commands Summary`)
-            .addField(`${prefix}pay amount @user @user`, `Allows users to send coins to other users.`)
-            .addField(`${prefix}top`, `Displays the 10 richest users.`)
-            .addField(`${prefix}rtop`, `Shows the 10 users with highest rep.`)
-            .addField(`${prefix}wallet OR ${prefix}w @user`, `Allows you to view the wallet of yourself or others.`)
-            .addField(`${prefix}econinfo`, `Displays the current configurations of the economy.`)
-            .addField(`${prefix}quests`, `Shows your daily progress on todays quest.`)
-            .addField(`${prefix}fight @user bet`, `Allows you to fight other users!`)
-            .addField(`${prefix}rep @user <+/-> <reason>`, `Allows you comment on another user.`)
-            .addField(`${prefix}inventory`, `Displays the contents of your inventory.`)
-            .addField(`${prefix}farm`, `Displays your plants, along with any seeds in storage.`)
-            .addField(`${prefix}store`, `Displays the items available to purchase.`)
-            .addField(`${prefix}buy <item> <amount>`, `Allows you to purchase from the store.`)
-            .addField(`${prefix}plant <item> <slot 1-5>`, `Plants a seedling on your farm.`)
-            .addField(`${prefix}water <slot 1-5>`, `Waters a plant. This can be done every 3 hours, and a plan will die if it hasn't been watered for more than 6 hours.`)
-            .addField(`${prefix}sell <slot>`, `Allows you to sell a plant ready for harvest.`)
+            .setColor('B65FFF')
+			.setThumbnail('https://file.coffee/u/jHfDGnnLgQ7n4xzViF3bE.png')
+            .addField(`List of Main Commands`, "`?pay {AMOUNT} {@} {@}` Allows users to send coins to other users\n`?top` Displays the top 10 richest users\n`?wallet OR ?w {@}` Displays your or another user's wallet\n`?econinfo` Displays the current economy configuration\n`?quests` Display your current progress on your quests")
+            .addField(`List of Farm Commands`, "`?farm` Displays your plants, along with your storage\n`?farmstore` Displays the crops you can purchase\n`?buy <ITEM> <AMOUNT>` Purchase something from the farm store\n`?plant <ITEM> <1-5>` Plant a crop in your farm\n`?water <1-5>` Water a crop, crops will die if they aren't watered in 6 hours\n`?sell <1-5>` Sell a crop that is ready for harvest\n`?destroy {#}` Destroys a crop on the farm")
+            .addField(`List of Extra Commands`, "`?plsexplain` Sends a message explainaing the server\n`?halloffame` Displays some vouches from well known people")
         message.channel.send({embeds:[embed]});
     }
 
     // farm system
-    if(msg == `${prefix}store`) {
+    if(msg == `${prefix}farmstore`) {
 
         // load items
         items = storeItems.map(t => "`"+ t.emoji +"` **"+t.name+":** "+t.price+" Coins\n*Watering Required:* `"+t.wateringRequired+" Times`")
@@ -1241,7 +930,7 @@ client.on("messageCreate", async message => {
         // display
         embed = new MessageEmbed()
             .setTitle(`The Farm Store`)
-            .setColor('GREEN')
+            .setColor('33FF4C')
             .setDescription(items.join("\n\n"))
             .addField(`Crop Quality`, "`-` Super Good Quality sells for +20% coins from the original price.\n`-` Good Quality sells for +10% coins from the original price.\n`-` Bad Quality sells for -10% coins from the original price.")
         message.channel.send({ embeds: [embed] });
@@ -1323,7 +1012,7 @@ client.on("messageCreate", async message => {
         // reply
         embed = new MessageEmbed()
             .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
-            .setColor('GREEN')
+            .setColor('33FF4C')
             .setDescription(`Successfully purchased!\n${item.quantity}x `+"`"+itemFound.emoji+" "+itemFound.name+"` for **"+itemFound.price * item.quantity+" Coins**")
         message.channel.send({ embeds: [embed] });
     }
@@ -1347,7 +1036,7 @@ client.on("messageCreate", async message => {
         // check dates
         for(i = 0; i < data.farm.length; i++) {
             if(data.farm[i] != null) {
-                if(data.farm[i].lastWatered != null && data.farm[i].wateringRequired != data.farm[i].wateringComplete && data.farm[i].lastWatered < (Date.now() - (1000*60*60*6))) {
+                if(data.farm[i].lastWatered != null && data.farm[i].wateringRequired != data.farm[i].wateringComplete && data.farm[i].lastWatered < (Date.now() - (1000*60*60*5))) {
                     data.farm[i] = null;
                 }
             }
@@ -1374,7 +1063,7 @@ client.on("messageCreate", async message => {
         embed = new MessageEmbed()
             .setColor('ORANGE')
             .setAuthor({ iconURL: user.displayAvatarURL(), name: `${user.tag}` })
-            .setDescription(`**Harvested:** ${data.harvested == null ? data.harvested : 0} crops`)
+            .setDescription(`**Harvested:** ${data.harvested != null ? data.harvested : 0} crops`)
             .addField(`Farm`, farm.join("\n"))
             .addField(`Storage`, storage.length == 0 ? `No seedlings to plant!` : storage.join("\n"))
         message.channel.send({embeds:[embed]});
@@ -1447,7 +1136,7 @@ client.on("messageCreate", async message => {
         embed = new MessageEmbed()
             .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
             .setDescription("`"+mover.name+"` have been planted. Remember to water every 3 hours!")
-            .setColor('GREEN')
+            .setColor('33FF4C')
         message.channel.send({embeds:[embed]});
     }
     if(md[0].toLowerCase() == `${prefix}water`) {
@@ -1507,7 +1196,7 @@ client.on("messageCreate", async message => {
         embed = new MessageEmbed()
             .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
             .setDescription("Watered!")
-            .setColor('GREEN')
+            .setColor('33FF4C')
         message.channel.send({embeds:[embed]});
     }
     if(md[0].toLowerCase() == `${prefix}sell`) {
@@ -1586,17 +1275,177 @@ client.on("messageCreate", async message => {
         embed = new MessageEmbed()
             .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
             .setDescription(`Sold! Your plant was deemed as **${type.name}** and was sold for **${type.value}** coins.`)
-            .setColor('GREEN')
+            .setColor('33FF4C')
         message.channel.send({embeds:[embed]});
     }
+    
+    // clients attempt
+    if(md[0].toLowerCase() == `${prefix}destroy`) {
 
-    // client made cmd
-    if(msg == `${prefix}index`) {
+        // wrong usage?
+        if(!md[1] || md[1] < 1 || md[1] > 6) {
+            embed = new MessageEmbed()
+                .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
+                .setDescription(`Incorrect command usage. E.g. ${prefix}destroy <slot 1-5>`)
+                .setColor('DARK_RED')
+            message.channel.send({embeds:[embed]});
+            return
+        }
+
+        // process input
+        slot = parseInt(md[1]) - 1;
+
+        // anything planted?
+        if(!fs.existsSync(`./data/farm/${message.author.id}.json`)) {
+            embed = new MessageEmbed()
+                .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
+                .setDescription("Nothing is planted in `slot "+(slot + 1)+"`!")
+                .setColor('DARK_RED')
+            message.channel.send({embeds:[embed]});
+            return
+        }
+
+        // load data
+        data = JSON.parse(fs.readFileSync(`./data/farm/${message.author.id}.json`));
+
+        // anything planted?
+        if(data.farm[slot] == null) {
+            embed = new MessageEmbed()
+                .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
+                .setDescription("Nothing is planted in `slot "+(slot + 1)+"`!")
+                .setColor('DARK_RED')
+            message.channel.send({embeds:[embed]});
+            return
+        }  
+
+        // storage -> slot
+        data.farm[slot] = null;
+        fs.writeFileSync(`./data/farm/${message.author.id}.json`, JSON.stringify(data, null, 4));
+
+        // reply
         embed = new MessageEmbed()
-            .setColor('ORANGE')
-            .addField(`List of all Discovered Mutated Crops`, "`🌼 Mutated Wheat` Average 500 CPH\n`🥔 Mutated Potato` Average 800 CPH\n`🥕 Mutated Carrot` Average 1500 CPH\n`🌶️ Mutated Pepper` Average 2500 CPH")
-            .addField(`List of all Discovered Special Crops`, "`🌻 Sunflower` Average 750 CPH\n`🌿 Mint` Average 1000 CPH")
+            .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL() })
+            .setDescription("Plant has been destroyed!")
+            .setColor('33FF4C')
         message.channel.send({embeds:[embed]});
+    }
+        if(md[0].toLowerCase() == `${prefix}s`) {
+
+        // admin?
+        if(!message.member.roles.cache.has(adminRole)) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`You must be a member of staff to use this command.`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('33FF4C')
+            .setTitle(`Payment has been completed!`)
+			.setThumbnail('https://file.coffee/u/Keot0DUr9XUQ2XfloKUka.png')
+            .setDescription(`Your order will be deliverd as soon as possible. Please refrain from talking in this ticket any further. If you have any questions, please let the staff member that claimed this ticket know.`)
+        message.channel.send({embeds:[embed]});
+    }
+    
+        if(md[0].toLowerCase() == `${prefix}cc`) {
+
+        // admin?
+        if(!message.member.roles.cache.has(adminRole)) {
+            embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`You must be a member of staff to use this command.`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('YELLOW')
+            .setTitle(`Congratulations! Your product has been delivered!`)
+			.setThumbnail('https://file.coffee/u/16yLU-8q0n0aIkTYQ8yro.webp')
+            .setDescription(`Ensure that you have received your product and leave a vouch in the vouch channel, as it would help us a lot. This ticket will be manually closed after your vouch has been checked over. If you have any questions regarding your purchase, please create a new ticket.`)
+        message.channel.send({embeds:[embed]});
+    }
+    
+    if(md[0].toLowerCase() == `${prefix}plsexplain`) {
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('YELLOW')
+            .setTitle(`hello there new member and welcome to shrivel`)
+            .setDescription(`You talk to earn coins, you use coins to buy stuff - that is literally it. We do events and tournamenets sometimes, check vouch channel if you are unsure of our legitemancy. Use the command **?w** to check your balance in bot commands, check out the server store channel to see what you can buy. Please just take a look at the guidebook and you'll understand this server k have a good day`)
+        message.channel.send({embeds:[embed]});
+    }
+    if(md[0].toLowerCase() == `${prefix}halloffame`) {
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('YELLOW')
+            .setTitle(`Vouches from pretty well known people`)
+			.setThumbnail('https://file.coffee/u/16yLU-8q0n0aIkTYQ8yro.webp')
+            .setDescription(`**BedlessNoob** - https://prnt.sc/rDlX_ZKcqK14\n**Divinah** - https://prnt.sc/tsHrGHrQ4zmk\n**NoSDaemon** - https://prnt.sc/SKnLtC_F4DBc\n**GandalfSwagInc** - https://prnt.sc/Zofgrq5atigG`)
+        message.channel.send({embeds:[embed]});
+    }
+    if(md[0].toLowerCase() == `${prefix}slaves`) {
+
+        // reply
+        embed = new MessageEmbed()
+            .setColor('YELLOW')
+            .setTitle(`Jane Donaldson`)
+            .setDescription("Currently Owned By: `mafoo#2792`\nHealth Status: `Good Condition`\nTotal Crops Harvested: `0 Crops`")
+        message.channel.send({embeds:[embed]});
+    }
+    if(message.content.toLowerCase() === `${prefix}rpanel`){
+
+        if(!message.member.roles.cache.has(adminRole) && !message.member.roles.cache.has(adminRole1)) {
+            const embed = new MessageEmbed()
+                .setColor('DARK_RED')
+                .setAuthor({name:message.author.tag, iconURL:message.author.displayAvatarURL()})
+                .setDescription(`You must be a member of staff to use this command.`)
+            return message.channel.send({embeds:[embed]});
+        }
+
+        if(config.rroles.roles.length < 2) return message.channel.send('You must have 2 roles set up in config to spawn in the reaction panel!')
+        
+        // reaction role panel posting goes here
+
+        const embed = new MessageEmbed()
+        .setTitle(config.rroles.title)
+        .setColor(config.rroles.color)
+
+        const rRoles = []
+        const dropDown = []
+
+        config.rroles.roles.forEach(role => {
+            rRoles.push(`${role.emoji}  **${role.text}**`)
+            dropDown.push(
+                {
+                    label: `${role.text}`,
+                    description: `${role.description}`,
+                    value: `${role.text}`,
+                    emoji: `${role.emoji}`
+                }
+            )
+        })
+
+        const row = new MessageActionRow()
+        .addComponents(
+            new MessageSelectMenu()
+            .setCustomId('rpanel')
+            .setPlaceholder(`${config.rroles.roleFill}`)
+            .setMinValues(0)
+            .setMaxValues(dropDown.length)
+            .addOptions([
+                dropDown
+            ])
+        )
+        
+        embed.setDescription(`${config.rroles.description}\n\n${rRoles.join('\n')}`)
+
+        message.channel.send({embeds: [embed], components: [row]})
+
     }
 });
 
