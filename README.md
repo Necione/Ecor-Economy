@@ -1,6 +1,6 @@
 # Ecor Economy Discord Bot 🚀
 
-Ecor economy is an advanced, simple and easy to use Discord bot that includes a clean interface! We supply many different features most economy bots lack, such as **auctions, quests, user rating, etc.**
+Ecor Economy is an advanced yet simple, easy to use Discord bot that comes with a clean interface! We supply many different features most economy bots lack, such as **auctions, quests, user reputation, farming, etc.**
 
 This bot is still in __beta__ and will be released when all features and bugs are tested and fixed!
 
@@ -37,3 +37,7 @@ pm2 start index.js --name "Discord Bot"
 `@kiro 殺す#3080` - Bot hosting, backend, updates, etc.
 
 `@H4RB0R#6393` - Quality Assurance
+
+## Commands List 📜
+(Work in progress!)
+
