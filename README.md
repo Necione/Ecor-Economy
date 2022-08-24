@@ -4,8 +4,6 @@ Ecor Economy is an advanced yet simple, easy to use Discord bot that comes with 
 
 This bot is still in __beta__ and will be released when all features and bugs are tested and fixed!
 
-You can currently see the bot in action in the [Shrivel Discord](https://discord.gg/shrivel).
-
 ## Functions 🍂
 - Advanced economy system based on messages sent per minute. A user must send a minimum of 3 messages in 60 seconds to get a random amount of coins (5-15)
 - User wallet tiers. Your members can check their balance, pay eachother, and make money through talking!
