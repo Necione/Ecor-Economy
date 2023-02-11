@@ -2,11 +2,7 @@
 const fs = require("fs");
 const rn = require("random-number");
 const CronJob = require("cron").CronJob;
-const {
-  Client,
-  Intents,
-  MessageEmbed
-} = require("discord.js");
+const { Client, Intents, MessageEmbed } = require("discord.js");
 const client = new Client({
   intents: [
     Intents.FLAGS.GUILDS,
@@ -26,7 +22,8 @@ const {
   adminRole,
   images,
   images2,
-  status
+  status,
+  storeItems,
 } = require("./data/config.json");
 const config = require("./data/config.json");
 let chatters = []; // holds the IDs of people sending messages
@@ -96,9 +93,6 @@ client.on("ready", () => {
   // log
   console.log(`--> Bot online`);
 
-  // load slash commands
-  require('./data/slash').run(client);
-
   // status
   client.user.setPresence({
     activities: [{ name: status.message, type: status.type }],
@@ -130,370 +124,7 @@ client.on("ready", () => {
   );
   job1.start();
 });
-client.on("interactionCreate", async interaction => {
-  
-  // commands
-  if(interaction.commandName == 'pay') {
 
-    // defer
-    await interaction.deferReply();
-
-    // parse
-    const user = interaction.options._hoistedOptions[0].user;
-    const amount = interaction.options._hoistedOptions[1].value;
-
-    // correct usage?
-    if (
-      user.id == interaction.user.id ||
-      amount < 0
-    ) {
-      embed = new MessageEmbed()
-        .setColor("FFBB33")
-        .setAuthor({
-          name: interaction.user.tag,
-          iconURL: interaction.user.displayAvatarURL(),
-        })
-        .setDescription(
-          `Incorrect command usage. E.g. ${prefix}pay <@user> <amount>`
-        )
-        .setThumbnail("https://file.coffee/u/C_j6DpCgTR34mOSpaqpd5.png")
-        .setFooter({ text: `Please note, you CANNOT pay yourself.` });
-      return interaction.editReply({ embeds: [embed] });
-    }
-
-    // afford?
-    if (amount > get(interaction.user.id).balance) {
-      embed = new MessageEmbed()
-        .setColor("FF3333")
-        .setAuthor({
-          name: interaction.user.tag,
-          iconURL: interaction.user.displayAvatarURL(),
-        })
-        .setThumbnail("https://file.coffee/u/CWanwcFihzRKWMyxp8g5p.png")
-        .setDescription(`You cannot afford this transaction.`);
-      return interaction.editReply({ embeds: [embed] });
-    }
-
-    // generte code
-    code = rn({
-      min: 1111,
-      max: 9999,
-      integer: true,
-    });
-
-    // reply
-    embed = new MessageEmbed()
-      .setColor("B65FFF")
-      .setAuthor({
-        name: interaction.user.tag,
-        iconURL: interaction.user.displayAvatarURL(),
-      })
-      .setThumbnail("https://file.coffee/u/QgGkRW34pBz129RLRTus-.png")
-      .setDescription(
-        "Transferring `" +
-          parseInt(amount) +
-          " coins`\n" +
-          `<@${interaction.user.id}> → <@${
-            user.id
-          }>\nPlease type **${code}** to confirm this transaction`
-      );
-    await interaction.editReply({ embeds: [embed] });
-    message = await interaction.fetchReply();
-
-    // await response
-    const filter = (m) =>
-      m.content == `${code}` && m.author.id == interaction.user.id;
-    const collector = interaction.channel.createMessageCollector({
-      filter,
-      time: 15000,
-      max: 1,
-    });
-
-    // valid response
-    collector.on("collect", (m) => {
-      // update JSON
-      dy = get(interaction.user.id);
-      if (!isLocked(interaction.user.id)) dy.balance -= parseInt(amount);
-      set(interaction.user.id, dy);
-
-      du = get(user.id);
-      if (!isLocked(user.id))
-        du.balance += parseInt(amount);
-      set(user.id, du);
-
-      // reply
-      embed = new MessageEmbed()
-        .setColor("33FF4C")
-        .setAuthor({
-          name: interaction.user.tag,
-          iconURL: interaction.user.displayAvatarURL(),
-        })
-        .setThumbnail("https://file.coffee/u/x6Pfjxf-pI3PjCMTAIL3r.png")
-        .setDescription(
-          "Transaction completed! `" +
-            parseInt(amount) +
-            " coins`\n" +
-            `<@${interaction.user.id}> → <@${user.id}>`
-        );
-      interaction.channel.send({ embeds: [embed] });
-    });
-
-    // no valid response?
-    collector.on("end", (collected) => {
-      if (collected.size == 0) {
-        embed = new MessageEmbed()
-          .setColor("FF3333")
-          .setAuthor({
-            name: interaction.user.tag,
-            iconURL: interaction.user.displayAvatarURL(),
-          })
-          .setThumbnail("https://file.coffee/u/CWanwcFihzRKWMyxp8g5p.png")
-          .setDescription("No code recieved. Transaction has been cancelled.");
-        interaction.channel.send({ embeds: [embed] });
-      }
-    });
-  }
-  if(interaction.commandName == 'top') {
-
-    // defer
-    await interaction.deferReply();
-
-    // Sort raw data
-    files = fs.readdirSync(`./data/users/`).filter((t) => t.endsWith(".json"));
-    unsorted = [];
-    for (let i in files) {
-      file = JSON.parse(fs.readFileSync(`./data/users/${files[i]}`));
-      unsorted.push({
-        id: files[i].split(".")[0],
-        count: file.balance,
-      });
-    }
-    leaderboard = unsorted.sort((a, b) => (a.count < b.count ? 1 : -1));
-
-    // Further sort
-    raw = [];
-    counter = 1;
-    for (let i in leaderboard) {
-      raw.push({
-        id: leaderboard[i].id,
-        username: `<@${leaderboard[i].id}>`,
-        position: counter,
-        count: leaderboard[i].count,
-      });
-      counter = counter + 1;
-    }
-
-    // Format
-    pages = [];
-    string = [];
-    for (let i in raw) {
-      temp = `${raw[i].position}) ${raw[i].username} - ${raw[i].count} Coins`;
-      if (raw[i].position == 1) {
-        temp = `🥇 ${raw[i].username} - ${raw[i].count} Coins`;
-      } else if (raw[i].position == 2) {
-        temp = `🥈 ${raw[i].username} - ${raw[i].count} Coins`;
-      } else if (raw[i].position == 3) {
-        temp = `🥉 ${raw[i].username} - ${raw[i].count} Coins`;
-      }
-      if (string.length < 10) {
-        string.push(temp);
-      } else {
-        pages.push(string.join(` \n`));
-        string = [];
-        string.push(temp);
-      }
-    }
-
-    // Less than 10 users?
-    if (pages.length == 0) {
-      pages.push(string.join(` \n`));
-    }
-    console.log(pages);
-
-    embed = new MessageEmbed()
-      .setColor("B65FFF")
-      .setAuthor({
-        name: `Leaderboard - Top 10`,
-        iconURL: interaction.guild.iconURL(),
-      })
-      .setDescription(pages[0]);
-    await interaction.editReply({ embeds: [embed] });
-  }
-  if(interaction.commandName == `w` || interaction.commandName == `wallet`) {
-
-    // defer
-    await interaction.deferReply();
-
-    // collect data
-    user = interaction.options._hoistedOptions[0]
-      ? interaction.options._hoistedOptions[0].user
-      : interaction.user;
-    leaderboard = lb(user.id);
-    dk = get(user.id);
-
-    if (!dk.staffCredits) dk.staffCredits = 0;
-    type =
-      dk.staffCredits >= 30
-        ? {
-            colour: "BLUE",
-            name: "`💷` __Platinum__ Wyvern Wallet",
-            chance: 50,
-          }
-        : dk.staffCredits >= 20
-        ? { colour: "GOLD", name: "`💵` __Gold__ Wyvern Wallet", chance: 25 }
-        : dk.staffCredits >= 10
-        ? { colour: "WHITE", name: "`💶` __Iron__ Wyvern Wallet", chance: 10 }
-        : {
-            colour: "#CD7F32",
-            name: "`💴` __Bronze__ Wyvern Wallet",
-            chance: 0,
-          };
-    string =
-      "> **Current Balance:** `" +
-      dk.balance +
-      " Coins` *(#" +
-      leaderboard[0] +
-      ")*\n> **Messages Sent:** `" +
-      dk.messagesSent +
-      "` *(#" +
-      leaderboard[1] +
-      ")*\n> **Special Tokens:** `" +
-      dk.special +
-      "` *(#" +
-      leaderboard[2] +
-      ")* \n\n> **User Rating:** `" +
-      (dk.staffCredits != null
-        ? dk.staffCredits > 0
-          ? `+${dk.staffCredits}`
-          : dk.staffCredits
-        : 0) +
-      "` " +
-      (leaderboard[3] != null
-        ? "*(#" + (leaderboard[3] != null ? leaderboard[3] : "") + ")*"
-        : "") +
-      " \n> **Total Strikes:** `" +
-      (dk.strikes != null ? dk.strikes : 0) +
-      "`";
-
-    if (isLocked(user.id))
-      type = {
-        colour: "DARK_RED",
-        name: "`🔒` Locked Wyvern Wallet",
-        chance: 0,
-      };
-
-    // reply
-    embed = new MessageEmbed()
-      .setColor(type.colour)
-      .setTitle(type.name)
-      .setThumbnail(user.displayAvatarURL())
-      .setDescription(string);
-
-    if (type.chance > 0)
-      embed.setFooter({ text: `${type.chance}% chance to earn double coins!` });
-
-    await interaction.editReply({ embeds: [embed] });
-  }
-  if(interaction.commandName == `econinfo`) {
-    embed = new MessageEmbed()
-      .setColor("B65FFF")
-      .setThumbnail("https://file.coffee/u/nA5yRHN7GD8E4ekEB_AZq.webp")
-      .setTitle(`Economy Info`)
-      .setDescription(
-        "Current earnings: `" +
-          economy.minimumCoins +
-          "-" +
-          economy.maxiumumCoins +
-          " Coins per minute`\nCurrent Bonuses: `N/A`"
-      );
-    await interaction.reply({ embeds: [embed] });
-  }
-  if(interaction.commandName == `quests`) {
-    count = fs.existsSync(`./data/quests/${interaction.user.id}.json`)
-      ? JSON.parse(fs.readFileSync(`./data/quests/${interaction.user.id}.json`))
-          .messages.count
-      : 0;
-
-    embed = new MessageEmbed()
-      .setAuthor({
-        name: interaction.user.tag,
-        iconURL: interaction.user.displayAvatarURL(),
-      })
-      .setColor("B65FFF")
-      .setThumbnail("https://file.coffee/u/nA5yRHN7GD8E4ekEB_AZq.webp")
-      .setTitle(`Your Available Quests`)
-      .setDescription(
-        (count >= 1000 ? "~~" : "") +
-          "`Send 1000 Messages`" +
-          (count >= 1000 ? "~~" : "") +
-          " [" +
-          count +
-          "/1000]\n+750 Coins, +1 User Rating \n\n" +
-          (count >= 500 ? "~~" : "") +
-          "`Send 500 Messages`" +
-          (count >= 500 ? "~~" : "") +
-          " [" +
-          count +
-          "/500]\n+250 Coins, +1 User Rating"
-      );
-      await interaction.reply({ embeds: [embed] });
-  }
-
-  // client code
-  if (interaction.isCommand()) return;
-
-  const addedRoles = [];
-  const removedRoles = [];
-
-  interaction.values.forEach((value) => {
-    let obj = null;
-
-    config.rroles.roles.forEach((role) => {
-      if (role.text === value) {
-        obj = role;
-      }
-    });
-
-    if (obj !== null) {
-      const rRole = interaction.guild.roles.cache.find(
-        (r) => r.id === obj.roleID
-      );
-
-      if (rRole) {
-        if (!interaction.member._roles.includes(rRole.id)) {
-          interaction.member.roles.add(rRole.id);
-          addedRoles.push(rRole);
-        }
-      }
-    }
-  });
-
-  config.rroles.roles.forEach((role) => {
-    if (!interaction.values.includes(role.text)) {
-      const rRole = interaction.guild.roles.cache.find(
-        (r) => r.id === role.roleID
-      );
-
-      if (rRole) {
-        if (interaction.member._roles.includes(rRole.id)) {
-          interaction.member.roles.remove(rRole.id);
-          removedRoles.push(rRole);
-        }
-      }
-    }
-  });
-
-  let reply = [];
-
-  if (addedRoles.length) {
-    reply.push(`**Added Roles:** ${addedRoles.join(" ")}`);
-  }
-  if (removedRoles.length) {
-    reply.push(`**Removed Roles:** ${removedRoles.join(" ")}`);
-  }
-
-  interaction.reply({ content: `${reply.join("\n") || " "}`, ephemeral: true });
-});
 client.on("messageCreate", async (message) => {
   // filter
   if (message.author.bot) return;
@@ -508,7 +139,7 @@ client.on("messageCreate", async (message) => {
   set(message.author.id, dt);
 
   // quests
-  if (economy.channels.includes(message.channel.id)) {
+  if (message.channel.id == economy.channel) {
     if (fs.existsSync(`./data/quests/${message.author.id}.json`)) {
       xx = JSON.parse(
         fs.readFileSync(`./data/quests/${message.author.id}.json`)
@@ -557,7 +188,10 @@ client.on("messageCreate", async (message) => {
   }
 
   // earn coins through messaging
-  if (economy.channels.includes(message.channel.id)) {
+  if (
+    message.channel.id == economy.channel &&
+    !rewarded.includes(message.author.id)
+  ) {
     chatters.push(message.author.id); // push to array
     setTimeout(() => {
       delete chatters[chatters.indexOf(message.author.id)];
@@ -602,7 +236,7 @@ client.on("messageCreate", async (message) => {
 
   // events
   if (
-    economy.channels.includes(message.channel.id) &&
+    message.channel.id == economy.channel &&
     lastEvent < Date.now() - 1000 * 60 * 30 &&
     chatters.filter((t) => t != null).length >= 5
   ) {
@@ -1194,14 +828,950 @@ client.on("messageCreate", async (message) => {
       .setDescription(`Success. Special tokens have been given.`);
     message.channel.send({ embeds: [embed] });
   }
+
+  // user commands
+  if (msg.startsWith(`${prefix}pay`)) {
+    // correct usage?
+    if (
+      !message.mentions.users.first() ||
+      message.mentions.users.first().id == message.author.id ||
+      isNaN(md[2]) ||
+      md[2] < 0 ||
+      md[2] == ""
+    ) {
+      embed = new MessageEmbed()
+        .setColor("FFBB33")
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription(
+          `Incorrect command usage. E.g. ${prefix}pay <@user> <amount>`
+        )
+        .setThumbnail("https://file.coffee/u/C_j6DpCgTR34mOSpaqpd5.png")
+        .setFooter({ text: `Please note, you CANNOT pay yourself.` });
+      return message.channel.send({ embeds: [embed] });
+    }
+
+    // afford?
+    if (md[2] > get(message.author.id).balance) {
+      embed = new MessageEmbed()
+        .setColor("FF3333")
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setThumbnail("https://file.coffee/u/CWanwcFihzRKWMyxp8g5p.png")
+        .setDescription(`You cannot afford this transaction.`);
+      return message.channel.send({ embeds: [embed] });
+    }
+
+    // generte code
+    code = rn({
+      min: 1111,
+      max: 9999,
+      integer: true,
+    });
+
+    // reply
+    embed = new MessageEmbed()
+      .setColor("B65FFF")
+      .setAuthor({
+        name: message.author.tag,
+        iconURL: message.author.displayAvatarURL(),
+      })
+      .setThumbnail("https://file.coffee/u/QgGkRW34pBz129RLRTus-.png")
+      .setDescription(
+        "Transferring `" +
+          parseInt(md[2]) +
+          " coins`\n" +
+          `<@${message.author.id}> → <@${
+            message.mentions.users.first().id
+          }>\nPlease type **${code}** to confirm this transaction`
+      );
+    message.channel.send({ embeds: [embed] });
+
+    // await response
+    const filter = (m) =>
+      m.content == `${code}` && m.author.id == message.author.id;
+    const collector = message.channel.createMessageCollector({
+      filter,
+      time: 15000,
+      max: 1,
+    });
+
+    // valid response
+    collector.on("collect", (m) => {
+      // update JSON
+      dy = get(message.author.id);
+      if (!isLocked(message.author.id)) dy.balance -= parseInt(md[2]);
+      set(message.author.id, dy);
+
+      du = get(message.mentions.users.first().id);
+      if (!isLocked(message.mentions.users.first().id))
+        du.balance += parseInt(md[2]);
+      set(message.mentions.users.first().id, du);
+
+      // reply
+      embed = new MessageEmbed()
+        .setColor("33FF4C")
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setThumbnail("https://file.coffee/u/x6Pfjxf-pI3PjCMTAIL3r.png")
+        .setDescription(
+          "Transaction completed! `" +
+            parseInt(md[2]) +
+            " coins`\n" +
+            `<@${message.author.id}> → <@${message.mentions.users.first().id}>`
+        );
+      message.channel.send({ embeds: [embed] });
+    });
+
+    // no valid response?
+    collector.on("end", (collected) => {
+      if (collected.size == 0) {
+        embed = new MessageEmbed()
+          .setColor("FF3333")
+          .setAuthor({
+            name: message.author.tag,
+            iconURL: message.author.displayAvatarURL(),
+          })
+          .setThumbnail("https://file.coffee/u/CWanwcFihzRKWMyxp8g5p.png")
+          .setDescription("No code recieved. Transaction has been cancelled.");
+        message.channel.send({ embeds: [embed] });
+      }
+    });
+  }
+  if (msg == `${prefix}top`) {
+    // Sort raw data
+    files = fs.readdirSync(`./data/users/`).filter((t) => t.endsWith(".json"));
+    unsorted = [];
+    for (let i in files) {
+      file = JSON.parse(fs.readFileSync(`./data/users/${files[i]}`));
+      unsorted.push({
+        id: files[i].split(".")[0],
+        count: file.balance,
+      });
+    }
+    leaderboard = unsorted.sort((a, b) => (a.count < b.count ? 1 : -1));
+
+    // Further sort
+    raw = [];
+    counter = 1;
+    for (let i in leaderboard) {
+      raw.push({
+        id: leaderboard[i].id,
+        username: `<@${leaderboard[i].id}>`,
+        position: counter,
+        count: leaderboard[i].count,
+      });
+      counter = counter + 1;
+    }
+
+    // Format
+    pages = [];
+    string = [];
+    for (let i in raw) {
+      temp = `${raw[i].position}) ${raw[i].username} - ${raw[i].count} Coins`;
+      if (raw[i].position == 1) {
+        temp = `🥇 ${raw[i].username} - ${raw[i].count} Coins`;
+      } else if (raw[i].position == 2) {
+        temp = `🥈 ${raw[i].username} - ${raw[i].count} Coins`;
+      } else if (raw[i].position == 3) {
+        temp = `🥉 ${raw[i].username} - ${raw[i].count} Coins`;
+      }
+      if (string.length < 10) {
+        string.push(temp);
+      } else {
+        pages.push(string.join(` \n`));
+        string = [];
+        string.push(temp);
+      }
+    }
+
+    // Less than 10 users?
+    if (pages.length == 0) {
+      pages.push(string.join(` \n`));
+    }
+    console.log(pages);
+
+    embed = new MessageEmbed()
+      .setColor("B65FFF")
+      .setAuthor({
+        name: `Leaderboard - Top 10`,
+        iconURL: message.guild.iconURL(),
+      })
+      .setDescription(pages[0]);
+    message.channel.send({ embeds: [embed] });
+  }
+  if (
+    md[0].toLowerCase() == `${prefix}w` ||
+    md[0].toLowerCase() == `${prefix}wallet`
+  ) {
+    // collect data
+    user = message.mentions.users.first()
+      ? message.mentions.users.first()
+      : message.author;
+    leaderboard = lb(user.id);
+    dk = get(user.id);
+
+    if (!dk.staffCredits) dk.staffCredits = 0;
+    type =
+      dk.staffCredits >= 30
+        ? {
+            colour: "BLUE",
+            name: "`💷` __Platinum__ Wallet",
+            chance: 50,
+          }
+        : dk.staffCredits >= 20
+        ? { colour: "GOLD", name: "`💵` __Gold__ Wallet", chance: 25 }
+        : dk.staffCredits >= 10
+        ? { colour: "WHITE", name: "`💶` __Iron__ Wallet", chance: 10 }
+        : {
+            colour: "#CD7F32",
+            name: "`💴` __Bronze__ Wallet",
+            chance: 0,
+          };
+    string =
+      "> **Current Balance:** `" +
+      dk.balance +
+      " Coins` *(#" +
+      leaderboard[0] +
+      ")*\n> **Messages Sent:** `" +
+      dk.messagesSent +
+      "` *(#" +
+      leaderboard[1] +
+      ")*\n> **Special Tokens:** `" +
+      dk.special +
+      "` *(#" +
+      leaderboard[2] +
+      ")* \n\n> **User Rating:** `" +
+      (dk.staffCredits != null
+        ? dk.staffCredits > 0
+          ? `+${dk.staffCredits}`
+          : dk.staffCredits
+        : 0) +
+      "` " +
+      (leaderboard[3] != null
+        ? "*(#" + (leaderboard[3] != null ? leaderboard[3] : "") + ")*"
+        : "") +
+      " \n> **Total Strikes:** `" +
+      (dk.strikes != null ? dk.strikes : 0) +
+      "`";
+
+    if (isLocked(user.id))
+      type = {
+        colour: "DARK_RED",
+        name: "`🔒` Locked Wallet",
+        chance: 0,
+      };
+
+    // reply
+    embed = new MessageEmbed()
+      .setColor(type.colour)
+      .setTitle(type.name)
+      .setThumbnail(user.displayAvatarURL())
+      .setDescription(string);
+
+    if (type.chance > 0)
+      embed.setFooter({ text: `${type.chance}% chance to earn double coins!` });
+
+    message.channel.send({ embeds: [embed] });
+  }
+  if (msg == `${prefix}econinfo`) {
+    embed = new MessageEmbed()
+      .setColor("B65FFF")
+      .setThumbnail("https://file.coffee/u/HY1Oq4FdUxZA6javaxosX.png")
+      .setTitle(`Economy Info`)
+      .setDescription(
+        "Current earnings: `" +
+          economy.minimumCoins +
+          "-" +
+          economy.maxiumumCoins +
+          " Coins per minute`\nCurrent Bonuses: `N/A`"
+      );
+    message.channel.send({ embeds: [embed] });
+  }
+  if (msg == `${prefix}quests`) {
+    count = fs.existsSync(`./data/quests/${message.author.id}.json`)
+      ? JSON.parse(fs.readFileSync(`./data/quests/${message.author.id}.json`))
+          .messages.count
+      : 0;
+
+    embed = new MessageEmbed()
+      .setAuthor({
+        name: message.author.tag,
+        iconURL: message.author.displayAvatarURL(),
+      })
+      .setColor("B65FFF")
+      .setThumbnail("https://file.coffee/u/HY1Oq4FdUxZA6javaxosX.png")
+      .setTitle(`Your Available Quests`)
+      .setDescription(
+        (count >= 1000 ? "~~" : "") +
+          "`Send 1000 Messages`" +
+          (count >= 1000 ? "~~" : "") +
+          " [" +
+          count +
+          "/1000]\n+750 Coins, +1 User Rating \n\n" +
+          (count >= 500 ? "~~" : "") +
+          "`Send 500 Messages`" +
+          (count >= 500 ? "~~" : "") +
+          " [" +
+          count +
+          "/500]\n+250 Coins, +1 User Rating"
+      );
+    message.channel.send({ embeds: [embed] });
+  }
+  if (msg == `${prefix}inventory`) {
+    embed = new MessageEmbed()
+      .setColor("5F99FF")
+      .setAuthor({
+        name: `${message.author.username}'s Inventory`,
+        iconURL: message.author.displayAvatarURL(),
+      })
+      .setDescription(`Inventory is empty.`);
+    message.channel.send({ embeds: [embed] });
+  }
   if (msg == `${prefix}help`) {
     embed = new MessageEmbed()
       .setColor("B65FFF")
-      .setThumbnail("https://file.coffee/u/nA5yRHN7GD8E4ekEB_AZq.webp")
+      .setThumbnail("https://file.coffee/u/HY1Oq4FdUxZA6javaxosX.png")
       .addField(
         `List of Main Commands`,
         "`?pay {AMOUNT} {@} {@}` Allows users to send coins to other users\n`?top` Displays the top 10 richest users\n`?wallet OR ?w {@}` Displays your or another user's wallet\n`?econinfo` Displays the current economy configuration\n`?quests` Display your current progress on your quests"
+      )
+      .addField(
+        `List of Farm Commands`,
+        "`?farm` Displays your plants, along with your storage\n`?farmstore` Displays the crops you can purchase\n`?buy <ITEM> <AMOUNT>` Purchase something from the farm store\n`?plant <ITEM> <1-5>` Plant a crop in your farm\n`?water <1-5>` Water a crop, crops will die if they aren't watered in 6 hours\n`?sell <1-5>` Sell a crop that is ready for harvest\n`?destroy {#}` Destroys a crop on the farm"
       );
+    message.channel.send({ embeds: [embed] });
+  }
+
+  // farm system
+  if (msg == `${prefix}farmstore`) {
+    // load items
+    items = storeItems.map(
+      (t) =>
+        "`" +
+        t.emoji +
+        "` **" +
+        t.name +
+        ":** " +
+        t.price +
+        " Coins\n*Watering Required:* `" +
+        t.wateringRequired +
+        " Times`"
+    );
+
+    // display
+    embed = new MessageEmbed()
+      .setTitle(`The Farm Store`)
+      .setColor("33FF4C")
+      .setDescription(items.join("\n\n"))
+      .addField(
+        `Crop Quality`,
+        "`-` Super Good Quality sells for +20% coins from the original price.\n`-` Good Quality sells for +10% coins from the original price.\n`-` Bad Quality sells for -10% coins from the original price."
+      );
+    message.channel.send({ embeds: [embed] });
+  }
+  if (md[0].toLowerCase() == `${prefix}buy`) {
+    // locked?
+    if (isLocked(message.author.id)) {
+      embed = new MessageEmbed()
+        .setColor("DARK_RED")
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription(`Your wallet is locked. You cannot use this command.`);
+      return message.channel.send({ embeds: [embed] });
+    }
+
+    // wrong usage?
+    if (!md[1]) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription(
+          `Incorrect command usage. E.g. ${prefix}buy <item> <amount>`
+        )
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // process input
+    item = {
+      name: md.slice(1).join(" "),
+      quantity: 1,
+    };
+    if (!isNaN(md[md.length - 1])) {
+      item.name = md.slice(1, -1).join(" ");
+      item.quantity = parseInt(md[md.length - 1]);
+    }
+
+    // item found?
+    if (
+      !storeItems.filter(
+        (t) => t.name.toLowerCase() == item.name.toLowerCase()
+      )[0]
+    ) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription("`" + item.name + "` could not be found.")
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+    itemFound = storeItems.filter(
+      (t) => t.name.toLowerCase() == item.name.toLowerCase()
+    )[0];
+
+    // afford?
+    if (item.quantity * itemFound.price > get(message.author.id).balance) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription(
+          "You cannot afford to pay `" +
+            item.quantity * itemFound.price +
+            " coins`"
+        )
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // add to json
+    if (fs.existsSync(`./data/farm/${message.author.id}.json`)) {
+      data = JSON.parse(
+        fs.readFileSync(`./data/farm/${message.author.id}.json`)
+      );
+      for (i = 0; i < item.quantity; i++) {
+        data.purchased.push(itemFound);
+      }
+      for (i = 0; i < data.purchased.length; i++) {
+        data.purchased[i].wateringComplete = 0;
+        data.purchased[i].lastWatered = null;
+      }
+      fs.writeFileSync(
+        `./data/farm/${message.author.id}.json`,
+        JSON.stringify(data, null, 4)
+      );
+    } else {
+      temp = {
+        id: message.author.id,
+        farm: [null, null, null, null, null],
+        purchased: [],
+      };
+      for (i = 0; i < item.quantity; i++) {
+        temp.purchased.push(itemFound);
+      }
+      for (i = 0; i < temp.purchased.length; i++) {
+        temp.purchased[i].wateringComplete = 0;
+        temp.purchased[i].lastWatered = null;
+      }
+      fs.writeFileSync(
+        `./data/farm/${message.author.id}.json`,
+        JSON.stringify(temp, null, 4)
+      );
+    }
+
+    // subtract from balance
+    b = get(message.author.id);
+    b.balance -= item.quantity * itemFound.price;
+    set(message.author.id, b);
+
+    // reply
+    embed = new MessageEmbed()
+      .setAuthor({
+        name: message.author.tag,
+        iconURL: message.author.displayAvatarURL(),
+      })
+      .setColor("33FF4C")
+      .setDescription(
+        `Successfully purchased!\n${item.quantity}x ` +
+          "`" +
+          itemFound.emoji +
+          " " +
+          itemFound.name +
+          "` for **" +
+          itemFound.price * item.quantity +
+          " Coins**"
+      );
+    message.channel.send({ embeds: [embed] });
+  }
+  if (md[0].toLowerCase() == `${prefix}farm`) {
+    // user
+    user = message.mentions.users.first()
+      ? message.mentions.users.first()
+      : message.author;
+
+    // load data
+    data = {
+      id: message.author.id,
+      harvested: 0,
+      farm: [null, null, null, null, null],
+      purchased: [],
+    };
+    if (fs.existsSync(`./data/farm/${user.id}.json`))
+      data = JSON.parse(fs.readFileSync(`./data/farm/${user.id}.json`));
+
+    // good quality?
+    if (data.harvested >= 25 && data.farm.length != 6) data.farm.push(null);
+
+    // check dates
+    for (i = 0; i < data.farm.length; i++) {
+      if (data.farm[i] != null) {
+        if (
+          data.farm[i].lastWatered != null &&
+          data.farm[i].wateringRequired != data.farm[i].wateringComplete &&
+          data.farm[i].lastWatered < Date.now() - 1000 * 60 * 60 * 5
+        ) {
+          data.farm[i] = null;
+        }
+      }
+    }
+    fs.writeFileSync(
+      `./data/farm/${user.id}.json`,
+      JSON.stringify(data, null, 4)
+    );
+
+    // process
+    farm = data.farm.map((t) =>
+      t == null
+        ? "`🛑` **Empty**"
+        : "`" +
+          t.emoji +
+          "` **" +
+          t.plantName +
+          "**" +
+          `${
+            t.wateringComplete == t.wateringRequired
+              ? ` Ready for harvest!`
+              : t.wateringRequired < t.wateringComplete
+              ? " Overwatered!"
+              : ` - Watered ${t.wateringComplete}/${t.wateringRequired} times`
+          }`
+    );
+    storage = data.purchased.map((t) => "`" + t.emoji + "` **" + t.name + "**");
+
+    storage = [];
+    for (i in data.purchased) {
+      if (!storage.filter((t) => t.name == data.purchased[i].name)[0]) {
+        storage.push({
+          name: data.purchased[i].name,
+          emoji: data.purchased[i].emoji,
+          number: 1,
+        });
+      } else {
+        for (x in storage) {
+          if (storage[x].name == data.purchased[i].name) storage[x].number += 1;
+        }
+      }
+    }
+    storage = storage.map(
+      (t) => "`" + t.emoji + "`" + ` ${t.name} x${t.number}`
+    );
+
+    // display
+    embed = new MessageEmbed()
+      .setColor("ORANGE")
+      .setAuthor({ iconURL: user.displayAvatarURL(), name: `${user.tag}` })
+      .setDescription(
+        `**Harvested:** ${data.harvested != null ? data.harvested : 0} crops`
+      )
+      .addField(`Farm`, farm.join("\n"))
+      .addField(
+        `Storage`,
+        storage.length == 0 ? `No seedlings to plant!` : storage.join("\n")
+      );
+    message.channel.send({ embeds: [embed] });
+  }
+  if (md[0].toLowerCase() == `${prefix}plant`) {
+    // wrong usage?
+    if (
+      !md[1] ||
+      isNaN(md[md.length - 1]) ||
+      md[md.length - 1] < 1 ||
+      md[md.length - 1] > 6
+    ) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription(
+          `Incorrect command usage. E.g. ${prefix}plant <item> <slot 1-5>`
+        )
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // process input
+    item = {
+      name: md.slice(1, -1).join(" "),
+      slot: parseInt(md[md.length - 1]),
+    };
+
+    // has item? (no file)
+    if (!fs.existsSync(`./data/farm/${message.author.id}.json`)) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription(
+          "`" + item.name + "` could not be found in your farm storage."
+        )
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // load data
+    data = JSON.parse(fs.readFileSync(`./data/farm/${message.author.id}.json`));
+
+    // has item? (file)
+    if (
+      !data.purchased.filter(
+        (t) => t.name.toLowerCase() == item.name.toLowerCase()
+      )[0]
+    ) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription(
+          "`" + item.name + "` could not be found in your farm storage."
+        )
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // slot taken?
+    if (data.farm[item.slot - 1] != null) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription(
+          "`Slot " +
+            item.slot +
+            "` is in-use or is unavailable. You can only plant in an empty slot."
+        )
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // storage -> slot
+    mover = null;
+    for (i = 0; i < data.purchased.length; i++) {
+      if (data.purchased[i].name.toLowerCase() == item.name.toLowerCase()) {
+        mover = data.purchased[i]; // for use in the reply later on
+        data.farm[item.slot - 1] = data.purchased[i];
+        delete data.purchased[i];
+        data.purchased = data.purchased.filter((t) => t != null);
+        break;
+      }
+    }
+    fs.writeFileSync(
+      `./data/farm/${message.author.id}.json`,
+      JSON.stringify(data, null, 4)
+    );
+
+    // reply
+    embed = new MessageEmbed()
+      .setAuthor({
+        name: message.author.tag,
+        iconURL: message.author.displayAvatarURL(),
+      })
+      .setDescription(
+        "`" +
+          mover.name +
+          "` have been planted. Remember to water every 3 hours!"
+      )
+      .setColor("33FF4C");
+    message.channel.send({ embeds: [embed] });
+  }
+  if (md[0].toLowerCase() == `${prefix}water`) {
+    // wrong usage?
+    if (md[1] < 1 || md[1] > 6) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription(
+          `Incorrect command usage. E.g. ${prefix}water <slot 1-5>`
+        )
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // process input
+    slot = parseInt(md[1]) - 1;
+
+    // anything planted?
+    if (!fs.existsSync(`./data/farm/${message.author.id}.json`)) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription("Nothing is planted in `slot " + (slot + 1) + "`!")
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // load data
+    data = JSON.parse(fs.readFileSync(`./data/farm/${message.author.id}.json`));
+
+    // anything planted?
+    if (data.farm[slot] == null) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription("Nothing is planted in `slot " + (slot + 1) + "`!")
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // not been 3 hours?
+    if (
+      data.farm[slot].lastWatered != null &&
+      data.farm[slot].lastWatered > Date.now() - 1000 * 60 * 60 * 3
+    ) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription(
+          `You watered this plant too recently! Try again in ${Math.floor(
+            (data.farm[slot].lastWatered - (Date.now() - 1000 * 60 * 60 * 3)) /
+              (1000 * 60)
+          )} minute(s).`
+        )
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // storage -> slot
+    data.farm[slot].lastWatered = Date.now();
+    data.farm[slot].wateringComplete += 1;
+    fs.writeFileSync(
+      `./data/farm/${message.author.id}.json`,
+      JSON.stringify(data, null, 4)
+    );
+
+    // reply
+    embed = new MessageEmbed()
+      .setAuthor({
+        name: message.author.tag,
+        iconURL: message.author.displayAvatarURL(),
+      })
+      .setDescription("Watered!")
+      .setColor("33FF4C");
+    message.channel.send({ embeds: [embed] });
+  }
+  if (md[0].toLowerCase() == `${prefix}sell`) {
+    // wrong usage?
+    if (md[1] < 1 || md[1] > 5) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription(
+          `Incorrect command usage. E.g. ${prefix}sell <slot 1-5>`
+        )
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // process input
+    slot = parseInt(md[1]) - 1;
+
+    // anything planted?
+    if (!fs.existsSync(`./data/farm/${message.author.id}.json`)) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription("Nothing is planted in `slot " + (slot + 1) + "`!")
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // load data
+    data = JSON.parse(fs.readFileSync(`./data/farm/${message.author.id}.json`));
+
+    // anything planted?
+    if (data.farm[slot] == null) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription("Nothing is planted in `slot " + (slot + 1) + "`!")
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // ready to harvest?
+    if (data.farm[slot].wateringComplete != data.farm[slot].wateringRequired) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription(`This plant isn't ready to harvest.`)
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // storage -> slot
+    chance = rn({ min: 0, max: 100, integer: true });
+
+    type = null;
+    if (chance >= 95) {
+      type = {
+        name: `Super Good Quality`,
+        value: Math.floor(data.farm[slot].price * 1.2),
+      };
+    } else if (chance > 20) {
+      type = {
+        name: `Good Quality`,
+        value: Math.floor(data.farm[slot].price * 1.1),
+      };
+    } else {
+      type = {
+        name: `Bad Quality`,
+        value: Math.floor(data.farm[slot].price * 0.9),
+      };
+    }
+
+    if (data.farm[slot].wateringComplete > data.farm[slot].wateringRequired) {
+      type = {
+        name: `Bad Quality`,
+        value: Math.floor(data.farm[slot].price * 0.9),
+      };
+    }
+
+    data.farm[slot] = null;
+    fs.writeFileSync(
+      `./data/farm/${message.author.id}.json`,
+      JSON.stringify(data, null, 4)
+    );
+
+    // update balance
+    data = get(message.author.id);
+    data.balance += type.value;
+    set(message.author.id, data);
+
+    // reply
+    embed = new MessageEmbed()
+      .setAuthor({
+        name: message.author.tag,
+        iconURL: message.author.displayAvatarURL(),
+      })
+      .setDescription(
+        `Sold! Your plant was deemed as **${type.name}** and was sold for **${type.value}** coins.`
+      )
+      .setColor("33FF4C");
+    message.channel.send({ embeds: [embed] });
+  }
+
+  // clients attempt
+  if (md[0].toLowerCase() == `${prefix}destroy`) {
+    // wrong usage?
+    if (!md[1] || md[1] < 1 || md[1] > 6) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription(
+          `Incorrect command usage. E.g. ${prefix}destroy <slot 1-5>`
+        )
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // process input
+    slot = parseInt(md[1]) - 1;
+
+    // anything planted?
+    if (!fs.existsSync(`./data/farm/${message.author.id}.json`)) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription("Nothing is planted in `slot " + (slot + 1) + "`!")
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // load data
+    data = JSON.parse(fs.readFileSync(`./data/farm/${message.author.id}.json`));
+
+    // anything planted?
+    if (data.farm[slot] == null) {
+      embed = new MessageEmbed()
+        .setAuthor({
+          name: message.author.tag,
+          iconURL: message.author.displayAvatarURL(),
+        })
+        .setDescription("Nothing is planted in `slot " + (slot + 1) + "`!")
+        .setColor("DARK_RED");
+      message.channel.send({ embeds: [embed] });
+      return;
+    }
+
+    // storage -> slot
+    data.farm[slot] = null;
+    fs.writeFileSync(
+      `./data/farm/${message.author.id}.json`,
+      JSON.stringify(data, null, 4)
+    );
+
+    // reply
+    embed = new MessageEmbed()
+      .setAuthor({
+        name: message.author.tag,
+        iconURL: message.author.displayAvatarURL(),
+      })
+      .setDescription("Plant has been destroyed!")
+      .setColor("33FF4C");
     message.channel.send({ embeds: [embed] });
   }
 });
