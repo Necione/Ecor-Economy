@@ -1,45 +1,33 @@
 {
-    "token": "MTA3NDA0NjEzNjk2NjQ0NzEyNA.GnPs_g.x-Lzi0jYlB8sQVREn6eVB06PM9spSiQal2S_yA",
-    "prefix": ">",
+    "token": "MTA3OTUzNzU2Mzk4NDk5MDI3OA.G-Y_lI.-JTXIh5SkSw4Tmka83fMrAVgvC40uAAZdlc6-E",
+    "prefix": "?",
 
   "adminRole": "1073123091909197824",
   "adminRole1": "1073408549075570779",
   "images": [
-    {
-      "word": "Beware the rain, beware the snow. Beware the man, you think you know.",
-      "image": "https://file.coffee/u/_3f8zC6CHT3vK-d7sq0WA.png"
-    },
-    {
-      "word": "Everyone is a moon, and has a dark side which he never shows to anybody.",
-      "image": "https://file.coffee/u/p2wb4nSSQKCkGuLPpCUPO.png"
-    },
-    {
-      "word": "As the sun fades to darkness, the stage is set for the dawning of a new day.",
-      "image": "https://file.coffee/u/szRO4aqOD5227Oi9mtRdN.png"
-    },
-    {
-      "word": "How many chucks could a woodchuck chuck if a woodchuck could chuck wood?",
-      "image": "https://file.coffee/u/u7PCDsPXLS_9OgnffMf5W.png"
-    },
-    {
-      "word": "Listen, if I have no clue what I am doing, neither will the enemy.",
-      "image": "https://file.coffee/u/dBiSZkbu95-8MQ3pSGKxM.png"
-    },
-    {
-      "word": "Honestly, humans are nothing more than a product of society.",
-      "image": "https://file.coffee/u/7Yyq0OTh41KfpBXczWAqo.png"
-    },
-    {
-      "word": "Everything is a lot simpler than it seems. Stop overthinking, idiot.",
-      "image": "https://file.coffee/u/wqTT0jFRi8ZLTR9IspNWb.png"
-    }
+        {
+          "word": "Osmanthus wine tastes the same as I remember... But where are those who share the memory?",
+          "image": "https://file.coffee/u/JzlX-EJXiHQOhOa7KOO7f.png"
+        },
+        {
+          "word": "Foolish question. There are only two kinds of things: those that must be done and those that must not.",
+          "image": "https://file.coffee/u/VGjFbl0xrzNZkrSCeD3pN.png"
+        },
+        {
+          "word": "You wield such powers without owning a Vision... I really am excited to see what you have in store for us... Let's see how far you can go.",
+          "image": "https://file.coffee/u/KFVZRT95nCCZnKXnhCOoD.png"
+        },
+        {
+          "word": "You have already proven your determination. Well then, it is now time for you to witness my resolve.",
+          "image": "https://file.coffee/u/FSqeD8zhwoKRkKOoA-944.png"
+        }
   ],
 
     "economy": {
-        "channel": "1073116155549585410",
+        "channel": "1078889213015113788",
         "minimumMessagesIn60Seconds": 2,
         "minimumCoins": 5,
-        "maxiumumCoins": 15,
+        "maxiumumCoins": 10,
         "boostRole": "1073408957080674376",
         "boostAmount": 3
     },
